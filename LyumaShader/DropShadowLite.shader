@@ -5,8 +5,8 @@ Shader "LyumaShader/DropShadowLiteToonTransparent"
         _2d_coef ("Twodimensionalness", Range(0, 1)) = 1.0
         _facing_coef ("Facing Lock", Range(0, 1)) = 0.0
         _lock2daxis_coef ("Lock 2d Axis", Range(0, 1)) = 0.0
-       _shadow_offset ("Shadow Offset", Vector) = (0,0,0,0)
-       _Color ("Color", Color) = (0,0,0,0)
+        _shadow_offset ("Shadow Offset", Vector) = (0,0,0,0)
+        _Color ("Color", Color) = (0,0,0,0)
         _MainTex("Main Tex", 2D) = "transparent" {}
         _clear_center_shadow ("Leave shadow hollow in the middle", Range(0, 1)) = 0.0
         [HideInInspector] _texcoord( "", 2D ) = "white" {}
@@ -30,7 +30,7 @@ uniform float _lock2daxis_coef;
 uniform float _ztweak_coef;
 
 uniform float4 _shadow_offset;
-            #include "Shader2d/Shader2d.cginc"
+            #include "../Shader2d/Shader2d.cginc"
 
 struct VertexInput {
     float4 vertex : POSITION;
