@@ -3,12 +3,14 @@ Shader "LyumaShader/DropShadowLiteToonTransparent"
     Properties
     {
         _2d_coef ("Twodimensionalness", Range(0, 1)) = 1.0
-        _facing_coef ("Facing Lock", Range(0, 1)) = 0.0
-        _lock2daxis_coef ("Lock 2d Axis", Range(0, 1)) = 0.0
+        _facing_coef ("Face in Profile", Range (-1, 1)) = 0.0
+        _lock2daxis_coef ("Lock 2d Axis", Range (0, 1)) = 1.0
+        _local3d_coef ("See self in 3d", Range (0, 1)) = 0.0
+        _zcorrect_coef ("Squash Z (good=.975; 0=3d; 1=z-fight)", Float) = 0.975
+        _ztweak_coef ("Tweak z clip", Range (-1, 1)) = 0.0
         _shadow_offset ("Shadow Offset", Vector) = (0,0,0,0)
         _Color ("Color", Color) = (0,0,0,0)
         _MainTex("Main Tex", 2D) = "transparent" {}
-        _clear_center_shadow ("Leave shadow hollow in the middle", Range(0, 1)) = 0.0
         [HideInInspector] _texcoord( "", 2D ) = "white" {}
         [HideInInspector] __dirty( "", Int ) = 1
     }
@@ -23,14 +25,14 @@ Shader "LyumaShader/DropShadowLiteToonTransparent"
                     CGINCLUDE
             //#define UNITY_PASS_FORWARDADD
             #include "UnityCG.cginc"
-            #define NO_UNIFORMS
+/*            #define NO_UNIFORMS
 static float _2d_coef = 1.;
 uniform float _facing_coef;
 uniform float _lock2daxis_coef;
-uniform float _ztweak_coef;
+uniform float _ztweak_coef;*/
 
 uniform float4 _shadow_offset;
-            #include "../Shader2d/Shader2d.cginc"
+            #include "../Waifu2d/Waifu2d.cginc"
 
 struct VertexInput {
     float4 vertex : POSITION;
@@ -45,8 +47,8 @@ struct v2f_surf {
 };
 v2f_surf vert (VertexInput v) {
     v2f_surf o = (v2f_surf)0;
-    float4 tmp = v.vertex;
-    v.vertex = waifu_preprocess2(v.vertex, v.normal, tmp);// * 1.04;
+    //float4 tmp = v.vertex;
+    //v.vertex = waifu_preprocess(v.vertex, v.normal, tmp);// * 1.04;
     float3 worldNormal = UnityObjectToWorldNormal(v.normal);
 
     float3 bitang = myInvVMat._21_22_23; //normalize(posWorld - mul(unity_ObjectToWorld, float4(0,0,0,1)).xyz);
