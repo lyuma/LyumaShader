@@ -1,0 +1,178 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 6
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_Name: StarNestAvatar
+  m_Shader: {fileID: 4800000, guid: 606f23d576f7f470996da1eb03cb4dc5, type: 3}
+  m_ShaderKeywords: DISABLE_OUTLINE
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BakedCube:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailAlbedoMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailNormalMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _EmissionMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _EmissiveTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MaXinTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MetallicGlossMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MetallicMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Normal:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _OcclusionMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ParallaxMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _RoughMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ShadowRamp:
+        m_Texture: {fileID: 2800000, guid: 638ce7c8d7c21e74eb4d9911ef39cbf4, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SpecularMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SpecularPattern:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _texcoord:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _texcoord2:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Floats:
+    - _2d_coef: 0.99
+    - _Brightness: 0.5
+    - _BumpScale: 1
+    - _CLAMPOUT: 0
+    - _CamScroll: 0
+    - _Culling: 0
+    - _Cutoff: 0.1
+    - _Darkmatter: 555
+    - _DetailNormalMapScale: 1
+    - _Distfading: 55
+    - _DstBlend: 0
+    - _Emissive: 0
+    - _Formuparam: 572
+    - _GlossMapScale: 1
+    - _Glossiness: 0.5
+    - _GlossyReflections: 1
+    - _Iterations: 5
+    - _MatcapStyle: 1
+    - _Metallic: 0
+    - _Mode: 0
+    - _OcclusionStrength: 1
+    - _Offset: 0
+    - _Parallax: 0.02
+    - _RampDir: 1
+    - _ReadMask: 255
+    - _ReflSmoothness: 1
+    - _ReflType: 0
+    - _RimIntensity: 0.8
+    - _RimWidth: 0.2
+    - _RimlightType: 1
+    - _Saturation: 1
+    - _ShadowIntensity: 0.3
+    - _ShadowType: 1
+    - _SmoothnessTextureChannel: 0
+    - _SpecularArea: 25
+    - _SpecularHighlights: 1
+    - _SpecularIntensity: 5
+    - _SrcBlend: 1
+    - _Stencil: 0
+    - _StencilComp: 0
+    - _StencilFail: 0
+    - _StencilOp: 0
+    - _StencilZFail: 0
+    - _StepSize: 355
+    - _StylelizedIntensity: 1
+    - _StylizedReflStyle: 0
+    - _Tile: 700
+    - _UVSec: 0
+    - _UseOnlyBakedCube: 0
+    - _UseReflections: 1
+    - _UseUV2forNormalsSpecular: 0
+    - _Volsteps: 6
+    - _WriteMask: 255
+    - _ZTest: 4
+    - _ZWrite: 1
+    - __dirty: 1
+    - _advMode: 1
+    - _colormask: 15
+    - _dstblend: 0
+    - _facing_coef: 0
+    - _frustration_coef: 0
+    - _local3d_coef: 1
+    - _lock2daxis_coef: 0.8
+    - _mode: 0
+    - _srcblend: 1
+    - _zcorrect_coef: 0.975
+    - _ztweak_coef: 0
+    m_Colors:
+    - _Center: {r: 1, g: 0.3, b: 0.5, a: 0}
+    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _EmissiveColor: {r: 0, g: 0, b: 0, a: 1}
+    - _NormalTiling: {r: 1, g: 1, b: 0, a: 0}
+    - _Rotation: {r: 0, g: 0, b: 0, a: 0.01}
+    - _Scroll: {r: 1.3, g: 1, b: 0.6, a: 0.01}
+    - _SimulatedLightDirection: {r: 0, g: 45, b: 90, a: 0}
+    - _SpecularPatternTiling: {r: 20, g: 20, b: 0, a: 0}
