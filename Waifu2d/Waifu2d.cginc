@@ -40,7 +40,7 @@ static float3 targetCameraPos = mul(unity_ObjectToWorld, float4(targetCameraPosF
 static float3 cameraPos = lerp(realCameraPos, targetCameraPos, _lock2daxis_coef);
 
 
-static float3 cameraToObj = (cameraPos - objectPos) * float3(1., 0., 1.) + float3(0., 0., 0.0001);
+static float3 cameraToObj = (cameraPos - objectPos) * float3(1., 0., 1.); // + float3(0., 0., 0.0001);
 //static float3 objectPos = objectPos + 0.4 * (1. - _lock2daxis_coef) * normalize(cameraToObj);
 //static float3 cameraToObj = float3(cameraToObjX.x, 0., nonzeroify(cameraToObjX.z));
 static float2 cameraToObj2D = normalize(cameraToObj.xz); // FIXME: was normalize(cameraToObj).xz WHY?

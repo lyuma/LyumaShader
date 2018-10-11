@@ -1,8 +1,11 @@
+// Shader which uses Waifu2d.cginc to render a flat shadow behind an avatar.
+// Compatible with the same set of properties used in other flat shaders.
+// This shader was not Waifu2d Generated.
 Shader "LyumaShader/DropShadowLiteToonTransparent"
 {
     Properties
     {
-        _2d_coef ("Twodimensionalness", Range(0, 1)) = 1.0
+        _2d_coef ("Twodimensionalness", Range(0, 1)) = 0.99
         _facing_coef ("Face in Profile", Range (-1, 1)) = 0.0
         _lock2daxis_coef ("Lock 2d Axis", Range (0, 1)) = 1.0
         _local3d_coef ("See self in 3d", Range (0, 1)) = 0.0

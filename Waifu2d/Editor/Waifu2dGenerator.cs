@@ -131,7 +131,6 @@ namespace LyumaShader {
                             int shaderOff = line.IndexOf ("Properties", lineSkip, StringComparison.CurrentCulture);
                             if (shaderOff != -1) {
                                 state = 2;
-                                line = line.Substring (shaderOff);
                                 lineSkip = shaderOff;
                                 fallThrough = true;
                             }
@@ -140,9 +139,9 @@ namespace LyumaShader {
                     case 2: {
                             // Find end of Properties block
                             while (lineSkip < line.Length) {
-                                //Debug.Log ("Looking for braces state " + state + " on line " + lineNum + "/" + lineSkip + " {}" + braceLevel);
                                 int openBrace = line.IndexOf ("{", lineSkip, StringComparison.CurrentCulture);
                                 int closeBrace = line.IndexOf ("}", lineSkip, StringComparison.CurrentCulture);
+                                //Debug.Log ("Looking for braces state " + state + " on line " + lineNum + "/" + lineSkip + " {}" + braceLevel + " open:" + openBrace + "/ close:" + closeBrace);
                                 if (closeBrace != -1 && (openBrace > closeBrace || openBrace == -1)) {
                                     braceLevel--;
                                     if (braceLevel == 0) {
@@ -163,10 +162,6 @@ namespace LyumaShader {
                                     break;
                                 }
                             }
-                            /*
-                                string[] quotes = line.Substring (shaderOff).split ("{");
-                                string shader[1]
-                            }*/
                         }
                         break;
                     case 3: {
@@ -224,21 +219,6 @@ namespace LyumaShader {
                 // Failed to parse shader;
                 return null;
             }
-            string shaderLine = shaderData [editShaderNameLineNum];
-            shaderLine = shaderLine.Substring (0, editShaderNameSkip) + "_2d" + shaderLine.Substring (editShaderNameSkip);
-            shaderData [editShaderNameLineNum] = shaderLine;
-
-            string epLine = shaderData [beginPropertiesLineNum];
-            string propertiesAdd = "\n" +
-                "        // Waifu2d Properties:\n" +
-                "        _2d_coef (\"Twodimensionalness\", Range(0, 1)) = 1.0\n" +
-                "        _facing_coef (\"Face in Profile\", Range (-1, 1)) = 0.0\n" +
-                "        _lock2daxis_coef (\"Lock 2d Axis\", Range (0, 1)) = 1.0\n" +
-                "        _local3d_coef (\"See self in 3d\", Range (0, 1)) = 1.0\n" +
-                "        _zcorrect_coef (\"Squash Z (good=.975; 0=3d; 1=z-fight)\", Float) = 0.975\n" +
-                "        _ztweak_coef (\"Tweak z clip\", Range (-1, 1)) = 0.0\n";
-            epLine = epLine.Substring (0, beginPropertiesSkip) + propertiesAdd + epLine.Substring (beginPropertiesSkip);
-            shaderData [beginPropertiesLineNum] = epLine;
 
             string [] shader2dassets = AssetDatabase.FindAssets ("Waifu2d");
             string includePath = "LyumaShader/Waifu2d/Waifu2d.cginc";
@@ -276,6 +256,23 @@ namespace LyumaShader {
                 string cgIncludeAdd = "\nCGINCLUDE\n//Waifu2d Generated Block\n#define LYUMA2D_HOTPATCH\n#include \"" + includePath + "\"\nENDCG\n";
                 shaderData [cgIncludeLineNum] = cgIncludeLine.Substring (0, cgIncludeSkip) + cgIncludeAdd + cgIncludeLine.Substring (cgIncludeSkip);
             }
+
+            string epLine = shaderData [beginPropertiesLineNum];
+            string propertiesAdd = "\n" +
+                "        // Waifu2d Properties:\n" +
+                "        _2d_coef (\"Twodimensionalness\", Range(0, 1)) = 0.99\n" +
+                "        _facing_coef (\"Face in Profile\", Range (-1, 1)) = 0.0\n" +
+                "        _lock2daxis_coef (\"Lock 2d Axis\", Range (0, 1)) = 1.0\n" +
+                "        _local3d_coef (\"See self in 3d\", Range (0, 1)) = 1.0\n" +
+                "        _zcorrect_coef (\"Squash Z (good=.975; 0=3d; 1=z-fight)\", Float) = 0.975\n" +
+                "        _ztweak_coef (\"Tweak z clip\", Range (-1, 1)) = 0.0\n";
+            epLine = epLine.Substring (0, beginPropertiesSkip) + propertiesAdd + epLine.Substring (beginPropertiesSkip);
+            shaderData [beginPropertiesLineNum] = epLine;
+
+            string shaderLine = shaderData [editShaderNameLineNum];
+            shaderLine = shaderLine.Substring (0, editShaderNameSkip) + "_2d" + shaderLine.Substring (editShaderNameSkip);
+            shaderData [editShaderNameLineNum] = shaderLine;
+
             String dest = path.Replace (".shader", "_2d.txt");
             String finalDest = path.Replace (".shader", "_2d.shader");
             if (dest.Equals (path)) {
