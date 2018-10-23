@@ -11,7 +11,7 @@ namespace LyumaShader {
         static void Waifu2dMaterial (MenuCommand command)
         {
             Material m = command.context as Material;
-            Shader newShader = Waifu2d (m.shader);
+            Shader newShader = Waifu2d (m.shader, false);
             if (newShader != null) {
                 m.shader = newShader;
             }
@@ -21,10 +21,29 @@ namespace LyumaShader {
         static void Waifu2dShader (MenuCommand command)
         {
             Shader s = command.context as Shader;
-            Shader newS = Waifu2d (s);
+            Shader newS = Waifu2d (s, false);
             EditorGUIUtility.PingObject (newS);
         }
-        static Shader Waifu2d (Shader s)
+
+        [MenuItem ("CONTEXT/Material/Make 2d VR only (Lyuma Waifu2d)")]
+        static void WaifuVR2dMaterial (MenuCommand command)
+        {
+            Material m = command.context as Material;
+            Shader newShader = Waifu2d (m.shader, true);
+            if (newShader != null) {
+                m.shader = newShader;
+            }
+        }
+
+        [MenuItem ("CONTEXT/Shader/Generate 2d VR only waifu (Lyuma Waifu2d)")]
+        static void WaifuVR2dShader (MenuCommand command)
+        {
+            Shader s = command.context as Shader;
+            Shader newS = Waifu2d (s, true);
+            EditorGUIUtility.PingObject (newS);
+        }
+       
+        static Shader Waifu2d (Shader s, bool vr2d)
         {
             string shaderName = s.name;
             string path = AssetDatabase.GetAssetPath (s);
@@ -39,10 +58,10 @@ namespace LyumaShader {
                     }
                 }
             }
-            return Waifu2dPath (path, shaderName);
+            return Waifu2dPath (path, shaderName, vr2d, vr2d ? "_vr2d" : "_2d");
         }
 
-        static Shader Waifu2dPath(string path, string shaderName) {
+        static Shader Waifu2dPath(string path, string shaderName, bool vr2d, string shaderSuffix) {
             string [] shaderData = File.ReadAllLines (path);
             int state = 0;
             int comment = 0;
@@ -61,14 +80,14 @@ namespace LyumaShader {
             foreach (string xline in shaderData) {
                 string line = xline;
                 if (line.IndexOf ("Waifu2d Generated", StringComparison.CurrentCulture) != -1) {
-                    String origPath = path.Replace ("_2d.shader", ".shader");
-                    String origShaderName = shaderName.Replace("_2d", "");
+                    String origPath = path.Replace ("_vr2d.shader", ".shader").Replace ("_2d.shader", ".shader");
+                    String origShaderName = shaderName.Replace ("_vr2d", "").Replace("_2d", "");
                     if (EditorUtility.DisplayDialog ("Waifu2d", "Detected an existing Waifu2d comment: Regenrate from " + origShaderName + "?", "Regenerate", "Cancel")) {
                         if (path.Equals(origPath) || shaderName.Equals(origShaderName)) {
                             EditorUtility.DisplayDialog ("Waifu2d", "Unable to find name of original shader for " + shaderName, "OK", "");
                             return null;
                         }
-                        return Waifu2dPath (origPath, origShaderName);
+                        return Waifu2dPath (origPath, origShaderName, vr2d, shaderSuffix);
                     } else {
                         return null;
                     }
@@ -249,11 +268,19 @@ namespace LyumaShader {
             includePath = includePrefix + includePath;
             if (foundCgInclude) {
                 string cgIncludeLine = shaderData [cgIncludeLineNum];
-                string cgIncludeAdd = "//Waifu2d Generated\n#define LYUMA2D_HOTPATCH\n#include \"" + includePath + "\"\n";
+                string cgIncludeAdd = "//Waifu2d Generated\n#define LYUMA2D_HOTPATCH\n";
+                if (vr2d) {
+                    cgIncludeAdd += "#define VR_ONLY_2D 1\n";
+                }
+                cgIncludeAdd += "#include \"" + includePath + "\"\n";
                 shaderData [cgIncludeLineNum] = cgIncludeAdd + cgIncludeLine;
             } else {
                 string cgIncludeLine = shaderData [cgIncludeLineNum];
-                string cgIncludeAdd = "\nCGINCLUDE\n//Waifu2d Generated Block\n#define LYUMA2D_HOTPATCH\n#include \"" + includePath + "\"\nENDCG\n";
+                string cgIncludeAdd = "\nCGINCLUDE\n//Waifu2d Generated Block\n#define LYUMA2D_HOTPATCH\n";
+                if (vr2d) {
+                    cgIncludeAdd += "#define VR_ONLY_2D 1\n";
+                }
+                cgIncludeAdd += "# include \"" + includePath + "\"\nENDCG\n";
                 shaderData [cgIncludeLineNum] = cgIncludeLine.Substring (0, cgIncludeSkip) + cgIncludeAdd + cgIncludeLine.Substring (cgIncludeSkip);
             }
 
@@ -262,25 +289,25 @@ namespace LyumaShader {
                 "        // Waifu2d Properties:\n" +
                 "        _2d_coef (\"Twodimensionalness\", Range(0, 1)) = 0.99\n" +
                 "        _facing_coef (\"Face in Profile\", Range (-1, 1)) = 0.0\n" +
-                "        _lock2daxis_coef (\"Lock 2d Axis\", Range (0, 1)) = 1.0\n" +
+                "        _lock2daxis_coef (\"Lock 2d Axis\", Range (0, 1)) = " + (vr2d ? "0.0" : "1.0") + "\n" +
                 "        _local3d_coef (\"See self in 3d\", Range (0, 1)) = 1.0\n" +
-                "        _zcorrect_coef (\"Squash Z (good=.975; 0=3d; 1=z-fight)\", Float) = 0.975\n" +
+                "        _zcorrect_coef (\"Squash Z (good=.975; 0=3d; 1=z-fight)\", Float) = " + (vr2d ? "0.0" : "0.975") + "\n" +
                 "        _ztweak_coef (\"Tweak z clip\", Range (-1, 1)) = 0.0\n";
             epLine = epLine.Substring (0, beginPropertiesSkip) + propertiesAdd + epLine.Substring (beginPropertiesSkip);
             shaderData [beginPropertiesLineNum] = epLine;
 
             string shaderLine = shaderData [editShaderNameLineNum];
-            shaderLine = shaderLine.Substring (0, editShaderNameSkip) + "_2d" + shaderLine.Substring (editShaderNameSkip);
+            shaderLine = shaderLine.Substring (0, editShaderNameSkip) + shaderSuffix + shaderLine.Substring (editShaderNameSkip);
             shaderData [editShaderNameLineNum] = shaderLine;
 
-            String dest = path.Replace (".shader", "_2d.txt");
-            String finalDest = path.Replace (".shader", "_2d.shader");
+            String dest = path.Replace (".shader", shaderSuffix + ".txt");
+            String finalDest = path.Replace (".shader", shaderSuffix + ".shader");
             if (dest.Equals (path)) {
                 EditorUtility.DisplayDialog ("Waifu2d", "Shader " + shaderName + " at path " + path + " does not have .shader!", "OK", "");
                 return null;
             }
             Debug.Log ("Writing shader " + dest);
-            Debug.Log ("Shader name" + shaderName + "_2d");
+            Debug.Log ("Shader name" + shaderName + shaderSuffix);
             Debug.Log ("Original path " + path + " name " + shaderName);
             StreamWriter writer = new StreamWriter (dest, false);
             writer.WriteLine ("// AUTOGENERATED by LyumaShader Waifu2DGenerator at " + DateTime.UtcNow.ToString ("s") + "!");

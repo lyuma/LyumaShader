@@ -1,7 +1,7 @@
 // Shader which uses Waifu2d.cginc to render a flat shadow behind an avatar.
 // Compatible with the same set of properties used in other flat shaders.
 // This shader was not Waifu2d Generated.
-Shader "LyumaShader/DropShadowLiteToonTransparent"
+Shader "LyumaShader/DropShadowLiteToonTransparentVR2d"
 {
     Properties
     {
@@ -51,6 +51,9 @@ struct v2f_surf {
 };
 v2f_surf vert (VertexInput v) {
     v2f_surf o = (v2f_surf)0;
+#if !defined(USING_STEREO_MATRICES)
+    o.pos = float4(1,1,1,1);
+#else
     //float4 tmp = v.vertex;
     //v.vertex = waifu_preprocess(v.vertex, v.normal, tmp);// * 1.04;
     float3 worldNormal = UnityObjectToWorldNormal(v.normal);
@@ -83,6 +86,7 @@ v2f_surf vert (VertexInput v) {
     o.normalCameraNormW = float4(v.normal, max(_shadow_offset.w, abs(dot(normalize(baseCamDist), norm))));
     //fixed3 worldNormal = UnityObjectToWorldNormal( v.normal );
     o.color = float4(_Color.rgb,normAlignment);
+#endif
     return o;
 }
 
