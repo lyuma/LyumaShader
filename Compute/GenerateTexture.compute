@@ -1,0 +1,100 @@
+﻿// test.compute
+
+#pragma kernel FillWithRed
+#pragma kernel ConvertMeshTexture
+#pragma kernel ConvertMeshTextureNoUV
+#pragma kernel ConvertMeshTextureVertexOnly
+#pragma kernel ConvertMeshTextureBoneWeights
+
+struct InputBufferElem {
+    float4 vertex;
+    float4 normal;
+    float4 tangent;
+    float4 uvColor;
+    float4 boneIndices;
+    float4 boneWeights;
+};
+//
+StructuredBuffer<InputBufferElem> _InputBuffer;
+//StructuredBuffer<float4> _InputBuffer;
+RWTexture2D<half4> _Result;
+uint _TexWidth;
+uint _TexHeight;
+
+[numthreads(16,1,1)]
+void FillWithRed (uint3 dtid : SV_DispatchThreadID)
+{
+    _Result[dtid.xy] = float4(1,0,0.01,1);
+}
+
+[numthreads(16,1,1)]
+void ConvertMeshTextureVertexOnly (uint3 dtid : SV_DispatchThreadID)
+{
+    const uint PixelsPerElem = 1;
+
+    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1);
+    uint idx = dtid.y * _TexWidth / PixelsPerElem + dtid.x;
+
+    InputBufferElem el = _InputBuffer[idx];
+    _Result[texBasis] = half4(el.vertex.xyz, 1.);
+    //_Result[texBasis + uint2(1,0)] = half4(el.normal.xyzw);
+    //_Result[texBasis + uint2(2,0)] = half4(el.tangent.xyzw);
+}
+
+[numthreads(16,1,1)]
+void ConvertMeshTextureNoUV (uint3 dtid : SV_DispatchThreadID)
+{
+    const uint PixelsPerElem = 3;
+
+    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1);
+    uint idx = dtid.y * _TexWidth / PixelsPerElem + dtid.x;
+
+    InputBufferElem el = _InputBuffer[idx];
+    _Result[texBasis] = half4(el.vertex.xyz, 1.);
+    _Result[texBasis + uint2(1,0)] = half4(el.normal.xyzw);
+    _Result[texBasis + uint2(2,0)] = half4(el.tangent.xyzw);
+}
+
+[numthreads(16,1,1)]
+void ConvertMeshTexture (uint3 dtid : SV_DispatchThreadID)
+{
+    const uint PixelsPerElem = 4;
+
+    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1);
+    uint idx = dtid.y * _TexWidth / PixelsPerElem + dtid.x;
+
+    InputBufferElem el = _InputBuffer[idx];
+    _Result[texBasis] = half4(el.vertex.xyz, 1.);
+    _Result[texBasis + uint2(1,0)] = half4(el.normal.xyzw);
+    _Result[texBasis + uint2(2,0)] = half4(el.tangent.xyzw);
+    _Result[texBasis + uint2(3,0)] = half4(el.uvColor.xyzw);
+
+    /*_Result[texBasis] = half4(_InputBuffer[4 * idx].xyz, 1.);
+    _Result[texBasis + uint2(1,0)] = half4(_InputBuffer[4 * idx + 1].xyzw);
+    _Result[texBasis + uint2(2,0)] = half4(_InputBuffer[4 * idx + 2].xyzw);
+    _Result[texBasis + uint2(3,0)] = half4(_InputBuffer[4 * idx + 3].xyzw);*/
+    /*
+StructuredBuffer<fixed4> _InputBuffer;
+    _Result[texBasis] = half4(0.00001 * float4(_InputBuffer[16 * idx],_InputBuffer[16 * idx+1],_InputBuffer[16 * idx+2],_InputBuffer[16 * idx+3]).xyz, 1.);
+    _Result[texBasis + uint2(1,0)] = 0.00001 * half4(float4(_InputBuffer[16 * idx+4],_InputBuffer[16 * idx+5],_InputBuffer[16 * idx+6],_InputBuffer[16 * idx+3]).xyzw);
+    _Result[texBasis + uint2(2,0)] = 0.00001 * half4(float4(_InputBuffer[16 * idx+8],_InputBuffer[16 * idx+9],_InputBuffer[16 * idx+10],_InputBuffer[16 * idx+7]).xyzw);
+    _Result[texBasis + uint2(3,0)] = 0.00001 * half4(float4(_InputBuffer[16 * idx+12],_InputBuffer[16 * idx+13],_InputBuffer[16 * idx+14],_InputBuffer[16 * idx+15]).xyzw);
+    */
+}
+
+[numthreads(16,1,1)]
+void ConvertMeshTextureBoneWeights (uint3 dtid : SV_DispatchThreadID)
+{
+    const uint PixelsPerElem = 6;
+
+    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1);
+    uint idx = dtid.y * _TexWidth / PixelsPerElem + dtid.x;
+
+    InputBufferElem el = _InputBuffer[idx];
+    _Result[texBasis] = half4(el.vertex.xyz, 1.);
+    _Result[texBasis + uint2(1,0)] = half4(el.normal.xyzw);
+    _Result[texBasis + uint2(2,0)] = half4(el.tangent.xyzw);
+    _Result[texBasis + uint2(3,0)] = half4(el.uvColor.xyzw);
+    _Result[texBasis + uint2(4,0)] = half4(el.boneIndices.xyzw);
+    _Result[texBasis + uint2(5,0)] = half4(el.boneWeights.xyzw);
+}
