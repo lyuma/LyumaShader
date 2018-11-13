@@ -90,7 +90,7 @@
         }
 		uniform sampler2D _DigitTex;
 		uniform float _Debug;
-		static float _Digits = 10;
+		static float _Digits = 8;
 		static fixed _Precision = 3;
 		uniform float4 _BoneBindTexture_TexelSize;
 #if defined(UNITY_SINGLE_PASS_STEREO)
@@ -103,7 +103,7 @@
         void geom(triangle v2g vertin[3], inout TriangleStream<g2f> tristream,
                 uint primitiveID: SV_PrimitiveID)
         {
-        	if (primitiveID >= 2 * _Debug) {
+        	if (primitiveID >= 2 * (uint)_Debug) {
         		return;
         	}
         	float leftTex = primitiveID;
@@ -112,13 +112,13 @@
             o.vertex = UnityObjectToClipPos(flip * float4(-.5,-.1,-0.2,1.));
             o.uv = float2(leftTex,0.);
             tristream.Append(o);
-            o.vertex = UnityObjectToClipPos(flip * float4(-.5,-.1625,-0.2,1.));
+            o.vertex = UnityObjectToClipPos(flip * float4(-.5,-.1425,-0.2,1.));
             o.uv = float2(leftTex,1.);
             tristream.Append(o);
             o.vertex = UnityObjectToClipPos(flip * float4(.5,-.1,-0.2,1.));
             o.uv = float2(1.-leftTex,0.);
             tristream.Append(o);
-            o.vertex = UnityObjectToClipPos(flip * float4(.5,-.1625,-0.2,1.));
+            o.vertex = UnityObjectToClipPos(flip * float4(.5,-.1425,-0.2,1.));
             o.uv = float2(1.-leftTex,1.);
             tristream.Append(o);
             tristream.RestartStrip(); 
@@ -151,16 +151,18 @@
 
 		half4 frag( g2f i ) : SV_Target
 		{
-			float which = floor(i.uv.x * 5);
-			float2 uv_TexCoord9 = fmod(i.uv * float2( 5,1 ) + float2( 0,0 ), 1.0);
+			float which = floor(i.uv.x * 7);
+			float2 uv_TexCoord9 = fmod(i.uv * float2( 7,1 ) + float2( 0,0 ), 1.0);
 			clip(uv_TexCoord9 - 0.125);
 			uv_TexCoord9 = (uv_TexCoord9 - 0.125) / 0.875;
 			float2 UV8 = uv_TexCoord9;
 			float Places8 = _Digits;
 			float Precision8 = _Precision;
-			float Value8 = which < 1. ? stereoOffset.x : (which < 2. ? _BoneBindTexture_TexelSize.z :
-					(which < 3. ? _ScreenParams.x : (which < 4. ? (_BoneBindTexture_TexelSize.z / _ScreenParams.x) :
-					(which < 5. ? _BoneBindTexture_TexelSize.w : (123.456)))));
+			float Value8 = which < 1. ? stereoOffset.x : (which < 2. ? unity_StereoScaleOffset[0].x :
+					(which < 3. ? _BoneBindTexture_TexelSize.z :
+					(which < 4. ? _ScreenParams.x : (which < 5. ? (_BoneBindTexture_TexelSize.z / _ScreenParams.x) :
+					(which < 6. ? _BoneBindTexture_TexelSize.w : (which < 7. ? (_BoneBindTexture_TexelSize.w / _ScreenParams.y) :
+					(123.456)))))));
 			float2 localDigitCalculator88 = DigitCalculator8( UV8 , Places8 , Precision8 , Value8 );
 			float4 tex2DNode1 = tex2D( _DigitTex, localDigitCalculator88 );
 			return float4(tex2DNode1.rgb, 1.);
@@ -225,13 +227,6 @@
                 o.bindPose_col0 = float4(scale * normalize(v.tangent.xyz), 0);//scale * float4(0,1,0,0); //float4(scale * normalize(v.tangent.xyz), 0);
                 o.bindPose_col1 = float4(scale * cross(normalize(v.normal.xyz), normalize(v.tangent.xyz)), 0); // / scale//scale * float4(0,0,1,0); //
                 o.bindPose_col3 = float4(v.vertex.xyz, 1);
-
-                /*
-                o.bindPose_col1 = float4(1.,0.,0.,0.);
-                o.bindPose_col2 = float4(0.,1.,0.,0.);
-                o.bindPose_col0 = float4(0.,0.,1.,0.);
-                o.bindPose_col3 = float4(v.vertex.xyz, 1);
-                */
                 o.color = v.color;
                 o.uv1 = v.uv1;
                 return o;
@@ -267,16 +262,11 @@
 
             float2 pixelToUV(float2 pixelCoordinate, float2 offset) {
                 //return (floor(pixelCoordinate) + offset) / _ScreenParams.xy;
-                float correctedTexelSize = _BoneBindTexture_TexelSize.z;
-                if (correctedTexelSize / _ScreenParams.x > 1.9) {
-                	correctedTexelSize = 0.5 * correctedTexelSize;
+                float2 correctedTexelSize = _BoneBindTexture_TexelSize.zw;
+                if (correctedTexelSize.x / _ScreenParams.x > 1.9) {
+                    correctedTexelSize.x *= 0.5;
                 }
-#ifdef UNITY_SINGLE_PASS_STEREO
-                return (floor(pixelCoordinate) + offset) / float2(correctedTexelSize, _ScreenParams.y);
-#else
-                return (floor(pixelCoordinate) + offset) / _ScreenParams.xy;
-#endif
-                //return float2(ret.x, 1.0 - ret.y);
+                return (floor(pixelCoordinate) + offset) / correctedTexelSize;
             }
 
             void appendPixelToStream(inout TriangleStream<g2f> tristream, float2 pixelCoordinate, float4 color) {
@@ -288,34 +278,32 @@
 #else
                 float2 uvflip = float2(1., 1.);
 #endif
-#ifdef UNITY_SINGLE_PASS_STEREO
-                float scale = 1.;//3.;
-#else
-                float scale = 1.;
-#endif
-                /*
-                o.vertex = float4(pixelToUV(pixelCoordinate, float2(0.,0.)), 0., 1.);
+                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate, float2(0.,0.)) * 2. - float2(1.,1.)), 0., 1.);
                 tristream.Append(o);
-                o.vertex = float4(pixelToUV(pixelCoordinate, float2(1.,0.)), 0., 1.);
+                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate, float2(1.,0.)) * 2. - float2(1.,1.)), 0., 1.);
                 tristream.Append(o);
-                o.vertex = float4(pixelToUV(pixelCoordinate, float2(0.,1.)), 0., 1.);
+                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate, float2(0.,1.)) * 2. - float2(1.,1.)), 0., 1.);
                 tristream.Append(o);
-                o.vertex = float4(pixelToUV(pixelCoordinate, float2(1.,1.)), 0., 1.);
-                tristream.Append(o);
-                */
-                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate*scale, float2(0.,0.)) * 2. - float2(1.,1.)), 0., 1.);
-                tristream.Append(o);
-                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate*scale, float2(scale,0.)) * 2. - float2(1.,1.)), 0., 1.);
-                tristream.Append(o);
-                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate*scale, float2(0.,scale)) * 2. - float2(1.,1.)), 0., 1.);
-                tristream.Append(o);
-                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate*scale, float2(scale,scale)) * 2. - float2(1.,1.)), 0., 1.);
+                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate, float2(1.,1.)) * 2. - float2(1.,1.)), 0., 1.);
                 tristream.Append(o);
                 tristream.RestartStrip(); 
             }
 
-            [maxvertexcount(40)]
-            void geom(triangle v2g vertin[3], inout TriangleStream<g2f> tristream,
+            void appendPixelToStream(inout PointStream<g2f> ptstream, float2 pixelCoordinate, float4 color) {
+
+                g2f o = (g2f)0;
+                o.color = color * 0.1;
+#if UNITY_UV_STARTS_AT_TOP
+                float2 uvflip = float2(1., -1.);
+#else
+                float2 uvflip = float2(1., 1.);
+#endif
+                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate, float2(.5,.5)) * 2. - float2(1.,1.)), 0., 1.);
+                ptstream.Append(o);
+            }
+
+            [maxvertexcount(10)]
+            void geom(triangle v2g vertin[3], inout PointStream<g2f> ptstream,
                     uint primitiveID: SV_PrimitiveID)
             {
                 /*#ifdef USING_STEREO_MATRICES
@@ -329,52 +317,37 @@
                 }*/
                 if (vertin[0].uv1.x >= 1. && vertin[0].uv1.y == 0.) {
                     float4x4 transformMatrix = unity_ObjectToWorld;
-                    float boneId = -1;
-
-                    /*
-                    appendPixelToStream(tristream, float2(boneId, 0), transformMatrix._11_12_13_14.yzwx);
-                    appendPixelToStream(tristream, float2(boneId, 1), transformMatrix._21_22_23_24.zwxy);
-                    appendPixelToStream(tristream, float2(boneId, 2), transformMatrix._31_32_33_34.wxyz);
-                    appendPixelToStream(tristream, float2(boneId, 3), transformMatrix._41_42_43_44.xyzw);
-                    */
-                    appendPixelToStream(tristream, float2(0, 0), transformMatrix._11_21_31_41.yzwx);
-                    appendPixelToStream(tristream, float2(0, 1), transformMatrix._12_22_32_42.zwxy);
-                    appendPixelToStream(tristream, float2(0, 2), transformMatrix._13_23_33_43.wxyz);
-                    appendPixelToStream(tristream, float2(0, 3), transformMatrix._14_24_34_44.xyzw);
-                    appendPixelToStream(tristream, float2(0, 5), transformMatrix._11_22_33_44.xyzw);
+                    appendPixelToStream(ptstream, float2(0, 0), transformMatrix._11_21_31_41.yzwx);
+                    appendPixelToStream(ptstream, float2(0, 1), transformMatrix._12_22_32_42.zwxy);
+                    appendPixelToStream(ptstream, float2(0, 2), transformMatrix._13_23_33_43.wxyz);
+                    appendPixelToStream(ptstream, float2(0, 3), transformMatrix._14_24_34_44.xyzw);
+                    appendPixelToStream(ptstream, float2(0, 5), transformMatrix._11_22_33_44.xyzw);
 
                     float4x4 identity = float4x4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
-                    float4x4 oldTransformMatrix = readBindTransform(boneId, 0);
+                    float4x4 oldTransformMatrix = readBindTransform(-1, 0);
                     oldTransformMatrix = lerp(oldTransformMatrix, transformMatrix, all(oldTransformMatrix._11_12_13_21 == 0.0) * all(oldTransformMatrix._22_23_31_32 == 0.0));
-                    float4x4 oldTransformMatrixRA = readBindTransform(boneId, 1);
+                    float4x4 oldTransformMatrixRA = readBindTransform(-1, 1);
                     oldTransformMatrixRA = lerp(oldTransformMatrixRA, transformMatrix, all(oldTransformMatrixRA._11_12_13_21 == 0.0) * all(oldTransformMatrixRA._22_23_31_32 == 0.0));
                     float4x4 newTransformMatrix = lerp(oldTransformMatrix, oldTransformMatrixRA, 0.95);
 
-                    appendPixelToStream(tristream, float2(0, 6 + 0), newTransformMatrix._11_21_31_41.yzwx);
-                    appendPixelToStream(tristream, float2(0, 6 + 1), newTransformMatrix._12_22_32_42.zwxy);
-                    appendPixelToStream(tristream, float2(0, 6 + 2), newTransformMatrix._13_23_33_43.wxyz);
-                    appendPixelToStream(tristream, float2(0, 6 + 3), newTransformMatrix._14_24_34_44.xyzw);
-                    appendPixelToStream(tristream, float2(0, 6 + 5), newTransformMatrix._11_22_33_44.xyzw);
+                    appendPixelToStream(ptstream, float2(0, 6 + 0), newTransformMatrix._11_21_31_41.yzwx);
+                    appendPixelToStream(ptstream, float2(0, 6 + 1), newTransformMatrix._12_22_32_42.zwxy);
+                    appendPixelToStream(ptstream, float2(0, 6 + 2), newTransformMatrix._13_23_33_43.wxyz);
+                    appendPixelToStream(ptstream, float2(0, 6 + 3), newTransformMatrix._14_24_34_44.xyzw);
+                    appendPixelToStream(ptstream, float2(0, 6 + 5), newTransformMatrix._11_22_33_44.xyzw);
                 } else if (vertin[0].uv1.x >= 1.) {
                     // blend shape
                     float blendValue = vertin[0].bindPose_col3.x;
 
-                    appendPixelToStream(tristream, float2(vertin[0].uv1.y, 4), float4(blendValue, 0.5, 1, 1.));
+                    appendPixelToStream(ptstream, float2(vertin[0].uv1.y, 4), float4(blendValue, 0.5, 1, 1.));
                 } else {
                     float4x4 transformMatrix = CreateMatrixFromVert(vertin[0]);
                     float boneId = vertin[0].uv1.y;
-
-                    /*
-                    appendPixelToStream(tristream, float2(boneId, 0), transformMatrix._11_12_13_14.yzwx);
-                    appendPixelToStream(tristream, float2(boneId, 1), transformMatrix._21_22_23_24.zwxy);
-                    appendPixelToStream(tristream, float2(boneId, 2), transformMatrix._31_32_33_34.wxyz);
-                    appendPixelToStream(tristream, float2(boneId, 3), transformMatrix._41_42_43_44.xyzw);
-                    */
-                    appendPixelToStream(tristream, float2(1+boneId, 0), transformMatrix._11_21_31_41.yzwx);
-                    appendPixelToStream(tristream, float2(1+boneId, 1), transformMatrix._12_22_32_42.zwxy);
-                    appendPixelToStream(tristream, float2(1+boneId, 2), transformMatrix._13_23_33_43.wxyz);
-                    appendPixelToStream(tristream, float2(1+boneId, 3), transformMatrix._14_24_34_44.xyzw);
-                    appendPixelToStream(tristream, float2(1+boneId, 5), transformMatrix._11_22_33_44.xyzw);
+                    appendPixelToStream(ptstream, float2(1+boneId, 0), transformMatrix._11_21_31_41.yzwx);
+                    appendPixelToStream(ptstream, float2(1+boneId, 1), transformMatrix._12_22_32_42.zwxy);
+                    appendPixelToStream(ptstream, float2(1+boneId, 2), transformMatrix._13_23_33_43.wxyz);
+                    appendPixelToStream(ptstream, float2(1+boneId, 3), transformMatrix._14_24_34_44.xyzw);
+                    appendPixelToStream(ptstream, float2(1+boneId, 5), transformMatrix._11_22_33_44.xyzw);
 
                     float4x4 identity = float4x4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
                     float4x4 oldTransformMatrix = readBindTransform(boneId, 0);
@@ -383,11 +356,11 @@
                     oldTransformMatrixRA = lerp(oldTransformMatrixRA, transformMatrix, all(oldTransformMatrixRA._11_12_13_21 == 0.0) * all(oldTransformMatrixRA._22_23_31_32 == 0.0));
                     float4x4 newTransformMatrix = lerp(oldTransformMatrix, oldTransformMatrixRA, 0.95);
 
-                    appendPixelToStream(tristream, float2(1+boneId, 6 + 0), newTransformMatrix._11_21_31_41.yzwx);
-                    appendPixelToStream(tristream, float2(1+boneId, 6 + 1), newTransformMatrix._12_22_32_42.zwxy);
-                    appendPixelToStream(tristream, float2(1+boneId, 6 + 2), newTransformMatrix._13_23_33_43.wxyz);
-                    appendPixelToStream(tristream, float2(1+boneId, 6 + 3), newTransformMatrix._14_24_34_44.xyzw);
-                    appendPixelToStream(tristream, float2(1+boneId, 6 + 5), newTransformMatrix._11_22_33_44.xyzw);
+                    appendPixelToStream(ptstream, float2(1+boneId, 6 + 0), newTransformMatrix._11_21_31_41.yzwx);
+                    appendPixelToStream(ptstream, float2(1+boneId, 6 + 1), newTransformMatrix._12_22_32_42.zwxy);
+                    appendPixelToStream(ptstream, float2(1+boneId, 6 + 2), newTransformMatrix._13_23_33_43.wxyz);
+                    appendPixelToStream(ptstream, float2(1+boneId, 6 + 3), newTransformMatrix._14_24_34_44.xyzw);
+                    appendPixelToStream(ptstream, float2(1+boneId, 6 + 5), newTransformMatrix._11_22_33_44.xyzw);
                 }
             }
 
