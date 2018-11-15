@@ -5,6 +5,7 @@
 #pragma kernel ConvertMeshTextureNoUV
 #pragma kernel ConvertMeshTextureVertexOnly
 #pragma kernel ConvertMeshTextureBoneWeights
+#pragma kernel DumpMatrices
 
 struct InputBufferElem {
     float4 vertex;
@@ -18,8 +19,11 @@ struct InputBufferElem {
 StructuredBuffer<InputBufferElem> _InputBuffer;
 //StructuredBuffer<float4> _InputBuffer;
 RWTexture2D<half4> _Result;
+uint _TexYOffset;
 uint _TexWidth;
 uint _TexHeight;
+
+StructuredBuffer<float4x4> _MatrixBufIn;
 
 [numthreads(16,1,1)]
 void FillWithRed (uint3 dtid : SV_DispatchThreadID)
@@ -32,7 +36,7 @@ void ConvertMeshTextureVertexOnly (uint3 dtid : SV_DispatchThreadID)
 {
     const uint PixelsPerElem = 1;
 
-    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1);
+    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1) + uint2 (0, _TexYOffset);
     uint idx = dtid.y * _TexWidth / PixelsPerElem + dtid.x;
 
     InputBufferElem el = _InputBuffer[idx];
@@ -46,7 +50,7 @@ void ConvertMeshTextureNoUV (uint3 dtid : SV_DispatchThreadID)
 {
     const uint PixelsPerElem = 3;
 
-    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1);
+    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1) + uint2 (0, _TexYOffset);
     uint idx = dtid.y * _TexWidth / PixelsPerElem + dtid.x;
 
     InputBufferElem el = _InputBuffer[idx];
@@ -60,7 +64,7 @@ void ConvertMeshTexture (uint3 dtid : SV_DispatchThreadID)
 {
     const uint PixelsPerElem = 4;
 
-    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1);
+    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1) + uint2 (0, _TexYOffset);
     uint idx = dtid.y * _TexWidth / PixelsPerElem + dtid.x;
 
     InputBufferElem el = _InputBuffer[idx];
@@ -87,7 +91,7 @@ void ConvertMeshTextureBoneWeights (uint3 dtid : SV_DispatchThreadID)
 {
     const uint PixelsPerElem = 6;
 
-    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1);
+    uint2 texBasis = dtid.xy * uint2(PixelsPerElem,1) + uint2 (0, _TexYOffset);
     uint idx = dtid.y * _TexWidth / PixelsPerElem + dtid.x;
 
     InputBufferElem el = _InputBuffer[idx];
@@ -97,4 +101,19 @@ void ConvertMeshTextureBoneWeights (uint3 dtid : SV_DispatchThreadID)
     _Result[texBasis + uint2(3,0)] = half4(el.uvColor.xyzw);
     _Result[texBasis + uint2(4,0)] = half4(el.boneIndices.xyzw);
     _Result[texBasis + uint2(5,0)] = half4(el.boneWeights.xyzw);
+}
+
+[numthreads(16,1,1)]
+void DumpMatrices (uint3 dtid : SV_DispatchThreadID)
+{
+    const uint PixelsPerElem = 4;
+
+    uint2 texBasis = dtid.xy * uint2(1,PixelsPerElem) + uint2 (0, _TexYOffset);
+    uint idx = dtid.x;
+
+    float4x4 el = _MatrixBufIn[idx];
+    _Result[texBasis] = half4(el._11_21_31_41);
+    _Result[texBasis + uint2(0,1)] = half4(el._12_22_32_42);
+    _Result[texBasis + uint2(0,2)] = half4(el._13_23_33_43);
+    _Result[texBasis + uint2(0,3)] = half4(el._14_24_34_44);
 }

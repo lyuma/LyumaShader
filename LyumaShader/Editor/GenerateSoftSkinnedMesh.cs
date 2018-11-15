@@ -38,7 +38,7 @@ public class GenerateSoftSkinnedMesh : MonoBehaviour {
             nextCapital = 0;
         }
         // find any capital letter after position 1.
-        for (; nextCapital < name.Length && !char.IsUpper(name[nextCapital]) && name[nextCapital - 1] != ' '; nextCapital++) {}
+        for (; nextCapital < name.Length && !char.IsUpper(name[nextCapital]) && nextCapital > 0 && name[nextCapital - 1] != ' '; nextCapital++) {}
         if (nextCapital == name.Length) {
             nextCapital = 1;
         }
@@ -69,7 +69,7 @@ public class GenerateSoftSkinnedMesh : MonoBehaviour {
         var newBoneWeights = new BoneWeight [size];
         var newUV1 = new Vector4[size];
         var newColors = new Color [size];
-        var curIndices = new int [USE_BLEND_SHAPES == 2 ? size1 * 3 : size * 3];
+        var curIndices = new int [USE_BLEND_SHAPES == 1 ? (renderer.bones.Length + sourceMesh.blendShapeCount) * 3 : renderer.bones.Length * 3];
         var blendIndices = curIndices;
         var newBones = renderer.bones;
         var newBindPoses = sourceMesh.bindposes;
@@ -111,16 +111,16 @@ public class GenerateSoftSkinnedMesh : MonoBehaviour {
             newColors [dstVert].a = simpleName [3];
             newUV1 [dstVert] = new Vector4 (0, boneIndex, 0, 1);
             if (i % NUM_BONE_MODES == 0) {
-                curIndices [dstVert * 3] = i; // bind pose matrix
-                curIndices [dstVert * 3 + 1] = i + (NUM_BONE_MODES >= 2 ? 1 : 0); // bone transform
-                curIndices [dstVert * 3 + 2] = i + (NUM_BONE_MODES >= 3 ? 2 : 0); // unused - keep degenerate for Standard fallback
+                curIndices [boneIndex * 3] = i; // bind pose matrix
+                curIndices [boneIndex * 3 + 1] = i + (NUM_BONE_MODES >= 2 ? 1 : 0); // bone transform
+                curIndices [boneIndex * 3 + 2] = i + (NUM_BONE_MODES >= 3 ? 2 : 0); // unused - keep degenerate for Standard fallback
             }
             Debug.Log ("i:" + boneIndex + " v:" + dstVert + ": Adding vertex " + d(newVertices [dstVert]) + "/" + d(newNormals [dstVert]) + "/" + d(newTangents [dstVert]));
         }
         if (USE_BLEND_SHAPES >= 1) {
-            int baseTri = size1;
+            int baseTri = renderer.bones.Length;
             if (USE_BLEND_SHAPES == 2) {
-                blendIndices = new int [size2 * 3];
+                blendIndices = new int [sourceMesh.blendShapeCount * 3];
                 baseTri = 0;
             }
             for (int ishape = 0; ishape < size2; ishape++) {

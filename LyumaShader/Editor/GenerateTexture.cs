@@ -128,6 +128,7 @@ public class GenerateTexture : EditorWindow {
         shader.SetBuffer (kernelHandle, "_InputBuffer", computeBuffer);
         //shader.SetFloats(kernelHandle, "_DataBuffer", )
         shader.SetTexture (kernelHandle, "_Result", tex);
+        shader.SetInt ("_TexYOffset", 0);
         shader.SetInt ("_TexWidth", tex.width);
         shader.SetInt ("_TexHeight", tex.height);
         shader.SetInt ("_BlendShapeIdx", 0);
@@ -307,6 +308,7 @@ public class GenerateTexture : EditorWindow {
         shader.SetBuffer (kernelHandle, "_InputBuffer", computeBuffer);
         //shader.SetFloats(kernelHandle, "_DataBuffer", )
         shader.SetTexture (kernelHandle, "_Result", tex);
+        shader.SetInt ("_TexYOffset", 0);
         shader.SetInt ("_TexWidth", tex.width);
         shader.SetInt ("_TexHeight", tex.height);
         shader.SetInt ("_BlendShapeIdx", 0);

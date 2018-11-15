@@ -64,7 +64,7 @@ public class GenerateBoneTransformRenderer : MonoBehaviour {
         // var newUV1 = new Vector4[size];
         var newColors = new Color32 [size];
         var newIndices = new List<int []> ();
-        var curIndices = new int [size * 3];
+        var curIndices = new int [size];
         newIndices.Add (curIndices);
         var newBones = renderer.bones;
         var newBindPoses = sourceMesh.bindposes;
