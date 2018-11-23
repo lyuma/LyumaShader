@@ -7,7 +7,7 @@
 		_MainTex ("Base (RGB)", 2D) = "white" {}
         [HDR] _MeshTex ("Mesh Data", 2D) = "white" {}
         [HDR] _BlendShapeTexArray ("Blend Shape Data", 2DArray) = "black" {}
-        // [HDR] _BoneBindTransforms ("Bone Bind Transform Data", 2D) = "black" {}
+        [HDR] _BoneBindTransforms ("Bone Bind Transform Data", 2D) = "black" {}
         _NumBlendShapes ("Number of blend shapes", Float) = 0
         _FrameOffset ("Age of frame (0 = current)", Float) = 0
         _FrameOffsetLerp ("Lerp to old frame", Float) = 0
@@ -39,6 +39,8 @@
             #pragma fragment frag
             #pragma only_renderers d3d9 d3d11 glcore gles 
             #pragma target 4.6
+            #define _BoneBindTransforms _BoneBindTexture
+            #define _BoneBindTransforms_TexelSize _BoneBindTexture_TexelSize
             uniform float4 _Color;
             sampler2D _MainTex;
             Texture2D<half4> _MeshTex;
@@ -46,8 +48,8 @@
             uniform float4 _MeshTex_TexelSize;
             Texture2DArray<half4> _BlendShapeTexArray;
             uniform float4 _BlendShapeTexArray_TexelSize;
-            Texture2D<half4> _BoneBindTexture;
-            uniform float4 _BoneBindTexture_TexelSize;
+            Texture2D<half4> _BoneBindTransforms;
+            uniform float4 _BoneBindTransforms_TexelSize;
             uniform float _NumBlendShapes;
             uniform float _FrameOffset;
             uniform float _FrameOffsetLerp;
@@ -125,18 +127,18 @@
                 half4x4 ret = 10*CreateMatrixFromCols(
                 // bone poses will be written in swizzled format, such that
                 // an opaque black texture will give the identity matrix.
-                    _BoneBindTexture.Load(int3(genStereoTexCoord(boneIndex-adj, yOffset * 6 + 0))).wxyz,
-                    _BoneBindTexture.Load(int3(genStereoTexCoord(boneIndex-adj, yOffset * 6 + 1))).zwxy,
-                    _BoneBindTexture.Load(int3(genStereoTexCoord(boneIndex-adj, yOffset * 6 + 2))).yzwx,
-                    _BoneBindTexture.Load(int3(genStereoTexCoord(boneIndex-adj, yOffset * 6 + 3))).xyzw
+                    _BoneBindTransforms.Load(int3(genStereoTexCoord(boneIndex-adj, yOffset * 6 + 0))).wxyz,
+                    _BoneBindTransforms.Load(int3(genStereoTexCoord(boneIndex-adj, yOffset * 6 + 1))).zwxy,
+                    _BoneBindTransforms.Load(int3(genStereoTexCoord(boneIndex-adj, yOffset * 6 + 2))).yzwx,
+                    _BoneBindTransforms.Load(int3(genStereoTexCoord(boneIndex-adj, yOffset * 6 + 3))).xyzw
                 );
-                ret._11_22_33 = 10*_BoneBindTexture.Load(int3(genStereoTexCoord(boneIndex-adj, yOffset * 6 + 5))).xyz;
+                ret._11_22_33 = 10*_BoneBindTransforms.Load(int3(genStereoTexCoord(boneIndex-adj, yOffset * 6 + 5))).xyz;
                 ret._44 = 1.0;
                 return ret;
             }
             half readBlendShapeState(int blendIndex) {
                 float adj = sin(10 * _Time.x);
-                return _BoneBindTexture.Load(int3(blendIndex-adj, 4, 0)).x;
+                return _BoneBindTransforms.Load(int3(blendIndex-adj, 4, 0)).x;
             }
             InputBufferElem readMeshData(uint instanceID, uint primitiveID, uint vertexNum) {
                 uint pixelNum = 3 * (instanceID + primitiveID * numInstancePerVert) + vertexNum;
@@ -322,7 +324,7 @@
             float4 frag(g2f fragin) : SV_Target {
                 //return float4(0,0,1,1);
                 float4 tex = tex2D(_MainTex, float4(fragin.uv.xy, 0, 1));
-                //tex += _BoneBindTexture.Sample(sampler_MeshTex, float3(fragin.uv.xy, 0)); //tex2D(_MainTex, fragin.uv);
+                //tex += _BoneBindTransforms.Sample(sampler_MeshTex, float3(fragin.uv.xy, 0)); //tex2D(_MainTex, fragin.uv);
                 clip(tex.a - 0.01);
 
                 return tex * pow(_Color, 1. + _TrailColorPow.x + 0.25 * _TrailColorPow.y * fragin.uv.w);

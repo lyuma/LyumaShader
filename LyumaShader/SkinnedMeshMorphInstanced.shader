@@ -1,7 +1,17 @@
-﻿Shader "LyumaShader/SkinnedMeshMorph" 
+﻿Shader "LyumaShader/SkinnedMeshMorphInstanced" 
 {
     Properties
     {
+        // Waifu2d Properties:
+        _2d_coef ("Twodimensionalness", Range(0, 1)) = 0.99
+        _facing_coef ("Face in Profile", Range (-1, 1)) = 0.0
+        _lock2daxis_coef ("Lock 2d Axis", Range (0, 1)) = 1.0
+        _local3d_coef ("See self in 3d", Range (0, 1)) = 1.0
+        _zcorrect_coef ("Squash Z (good=.975; 0=3d; 1=z-fight)", Float) = 0.975
+        _ztweak_coef ("Tweak z clip", Range (-1, 1)) = 0.0
+        [Enum(Always,0,VROnly,1)] _DisplayVROnly ("Support non-VR", Int) = 0
+        [Enum(Off,0,FaceMirror,1)] _FaceMirrors ("Face Mirror/Camera?", Int) = 0
+
         // Shader properties
         _Color ("Main Color", Color) = (1,1,1,1)
         _MainTex ("Base (RGB)", 2D) = "white" {}
@@ -32,7 +42,7 @@
         // Shader code
         Pass
         {
-            Cull Back
+            Cull Front
             ZTest LEqual
             ZWrite On
             Blend One Zero // SrcAlpha OneMinusSrcAlpha
@@ -70,13 +80,17 @@
                 float4 vertex : POSITION;
                 float3 normal : NORMAL;
                 float4 tangent : TANGENT;
+                fixed4 color : COLOR0;
+                float4 uv : TEXCOORD0;
             };
 
             struct v2g {
-                float4 bindPose_col0 : TEXCOORD3;
-                float4 bindPose_col1 : TEXCOORD4;
-                float4 bindPose_col2 : TEXCOORD5;
-                float4 bindPose_col3 : TEXCOORD6;
+                float4 centerRot : TEXCOORD0;
+                float4 bindPose_col0 : TEXCOORD1;
+                float4 bindPose_col1 : TEXCOORD2;
+                float4 bindPose_col2 : TEXCOORD3;
+                float4 bindPose_col3 : TEXCOORD4;
+                float morphValue : TEXCOORD5;
             };
             struct g2f {
                 float4 pos : SV_POSITION;
@@ -101,6 +115,17 @@
                 o.bindPose_col0 = float4(scale * normalize(v.tangent.xyz), 0);//scale * float4(0,1,0,0); //float4(scale * normalize(v.tangent.xyz), 0);
                 o.bindPose_col1 = float4(scale * cross(normalize(v.normal.xyz), normalize(v.tangent.xyz)), 0); // / scale//scale * float4(0,0,1,0); //
                 o.bindPose_col3 = float4(v.vertex.xyz, 1);
+                o.centerRot = v.uv;
+                if (v.color.r > 0.5 && v.color.g > 0.5) {
+                    o.morphValue = 4.;
+                } else if (v.color.r > 0.5) {
+                    o.morphValue = 0.;
+                } else if (v.color.g > 0.5) {
+                    o.morphValue = 1.;
+                } else {
+                    o.morphValue = 2.;
+                }
+                //o.morphValue = lerp(4., lerp(2., lerp(0., 1., v.color.r > 0.5), v.color.r + v.color.b < 0.5), v.color.g + v.color.b < 0.5);
                 return o;
             }
 
@@ -112,7 +137,7 @@
                 float4 boneIndices;
                 float4 boneWeights;
             };
-            #define numInstancePerVert 1 //32
+            #define numInstancePerVert 32
 
             #define readHalf4(tex, pixelIndex) (tex).Load(int3((pixelIndex), 0))
             /*half4 readHalf4(uint2 pixelIndex) {
@@ -171,14 +196,14 @@
                 float adj = sin(10 * _Time.x);
                 return _BoneBindTransforms.Load(int3(blendIndex-adj, 4, 0)).x;
             }
-            InputBufferElem readMeshData(uint instanceID, uint primitiveID, uint vertexNum) {
+            InputBufferElem readMeshData(uint instanceID, uint primitiveID, uint vertexNum, float morphValue) {
                 uint pixelNum = 3 * (instanceID + primitiveID * numInstancePerVert) + vertexNum;
                 uint2 elemIndex = uint2((pixelNum % 64), pixelNum / 64);
                 uint2 pixelIndex = uint2(6 * elemIndex.x, elemIndex.y + 8);
 
                 InputBufferElem o;
-                float whichTex = floor(_MorphValue % 5);
-                float texFrac = frac(_MorphValue);
+                float whichTex = floor(morphValue % 5);
+                float texFrac = frac(morphValue);
                 if (whichTex < 1) {
                     READ_MESH_DATA(_MeshTex, _MeshTex1);
                 } else if (whichTex < 2) {
@@ -214,9 +239,83 @@
                 uint i;
                 [unroll]
                 for (i = 0; i < 3; i++) {
-                    InputBufferElem buf = readMeshData(instanceID, primitiveID, i);
+                    InputBufferElem buf = readMeshData(instanceID, primitiveID % 625, i, vertin[0].morphValue);
+                    float4x4 rootBone = readBindTransform(-1, 0);
                     float4x4 boneTransform;
-                    float4x4 worldTransform;
+                    float s, c;
+                    float angle = atan2(rootBone._31, rootBone._11);
+                    sincos(vertin[0].centerRot.w + UNITY_PI/2. + angle, s, c);
+                    float3 center = vertin[0].centerRot.xyz;
+                    /*float4x4 worldTransform = mul(unity_WorldToObject, float4x4(
+                                     1, 0, 0, 0,
+                                     0, 1, 0, 0,
+                                     0, 0, 1, 0,
+                                     0, 0, 0, 1));*/
+                    /*float4x4 worldTransform = float4x4(c, 0, s, -center.x,
+                                     0, 1, 0, center.y,
+                                     -s, 0, c, center.z,
+                                     0, 0, 0, 1);*/
+                                     /*
+                    float4x4 worldTransform = mul(unity_WorldToObject, float4x4(
+                                     -c, 0, s, 0,
+                                     0, -1, 0, 0,
+                                     s, 0, c, 0,
+                                     0, 0, 0, 1));
+                    worldTransform._14_34_24_44 = float4(center.xz, 0., 1.);*/
+                    /*float4x4 worldTransform = mul(unity_WorldToObject, float4x4(
+                                     -c, 0, s, -center.x,
+                                     0, -1, 0, 0,
+                                     s, 0, c, -center.z,
+                                     0, 0, 0, 0));
+                    worldTransform._44 = 1.;*/
+                    /*float4x4 worldTransform = mul(unity_WorldToObject, float4x4(
+                                     -c, 0, s, 0,
+                                     0, -1, 0, 0,
+                                     s, 0, c, 0,
+                                     0, 0, 0, 0));
+                    worldTransform._14_34_24_44 = float4(center.xz, -center.y, 1.);*/
+                    /*float4x4 worldTransform = float4x4(-c, 0, s, -center.x,
+                                     0, -1, 0, center.y,
+                                     s, 0, c, center.z,
+                                     0, 0, 0, 1);*/
+                    /*GOOD:float4x4 worldTransform = float4x4(c, 0, s, center.x,
+                                     0, 1, 0, 0.,
+                                     -s, 0, c, center.z,
+                                     0, 0, 0, 1);*/
+                    /*float2x2 worldRot1 = mul(float2x2(unity_WorldToObject._11_13_31_33), float2x2(
+                                     c, s, -s, c));
+                    float4x4 worldTransform = float4x4(worldRot1._11, 0, worldRot1._21, center.x,
+                                     0, 1, 0, 0., 
+                                     worldRot1._12, 0, worldRot1._22, center.z,
+                                     0, 0, 0, 1);*/
+                    //worldTransform._14_34_24_44 = float4(center.xz, -center.y, 1.);
+
+                    /* test */
+                    /*
+                    float4x4 worldTransform = mul(unity_WorldToObject, float4x4(1, 0, 0, center.x,
+                                     0, -1, 0, 0, 
+                                     0, 0, -1, center.z,
+                                     0, 0, 0, 1));
+                    //worldTransform._14_34_24_44 = float4(center.xz, 0., 1.);
+                    worldTransform._24_44 = float2(0., 1.);
+                    //worldTransform._14_34 = float2(center.x, center.z);
+                    worldTransform._11_13_31_33 = float4(c, s, -s, c);
+                    worldTransform._12_21_23_32 = float4(0,0,0,0);
+                    worldTransform._22 = 1.;
+                    */
+                    /*
+                    float4x4 worldTransform = float4x4(1, 0, 0, center.x,
+                                     0, -1, 0, 1., 
+                                     0, 0, -1, center.z,
+                                     0, 0, 0, 1);
+                    worldTransform._11_13_31_33 = float4(c, s, -s, c);*/
+                    float4x4 worldTransform = float4x4(1, 0, 0, center.x,
+                                     0, -1, 0, rootBone._24, //center.y+
+                                     0, 0, -1, center.z,
+                                     0, 0, 0, 1);
+                    worldTransform._11_13_31_33 = float4(c, s, -s, c);
+                    //o.uv = float4(buf.uvColor.xy, buf.boneIndices.x, vertin[0].morphValue);
+                    //tristream.Append(o);
                     if (!((buf.boneIndices.x >= _BoneCutoff.x &&
                             (_BoneCutoff.y == 0 || buf.boneIndices.x < _BoneCutoff.y)) ||
                             ((_BoneCutoff.z > 0 && buf.boneIndices.x >= _BoneCutoff.z) &&
@@ -235,8 +334,12 @@
                     } else {
                         boneTransform = float4x4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
                     }
-                    o.pos = UnityObjectToClipPos(mul(boneTransform, float4(buf.vertex.xyz, 1.)));
-                    o.uv = float4(buf.uvColor.xy, buf.boneIndices.x, 0);
+                    /*o.pos = mul(unity_ObjectToWorld, mul(worldTransform, mul(boneTransform, float4(buf.vertex.xyz, 1.))));
+                    o.pos = mul(unity_WorldToObject, o.pos + float4(mul(unity_ObjectToWorld, float4(0, 0, -1, 1)).xz, 0., 1.).xzyw);
+                    o.pos = UnityObjectToClipPos(o.pos);*/
+                    //o.pos = mul(unity_ObjectToWorld, mul(worldTransform, mul(boneTransform, float4(buf.vertex.xyz, 1.))));
+                    o.pos = UnityObjectToClipPos(mul(worldTransform, mul(boneTransform, float4(buf.vertex.xyz, 1.))));
+                    o.uv = float4(buf.uvColor.xy, buf.boneIndices.x, vertin[0].morphValue);
                     tristream.Append(o);
                 }
             }
@@ -244,8 +347,8 @@
             float4 frag(g2f fragin) : SV_Target {
                 //return float4(0,0,1,1);
                 float4 tex;
-                float whichTex = floor(_MorphValue % 5);
-                float texFrac = frac(_MorphValue);
+                float whichTex = floor(fragin.uv.w % 5);
+                float texFrac = frac(fragin.uv.w);
                 if (whichTex < 1) {
                     tex = lerp(
                         tex2D(_MorphTex, float4(fragin.uv.xy, 0, 1)),

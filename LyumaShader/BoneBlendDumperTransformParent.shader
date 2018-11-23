@@ -1,4 +1,4 @@
-﻿Shader "LyumaShader/BoneBlendDumperToonUnlitTransparent" 
+﻿Shader "LyumaShader/BoneBlendDumperTransformParentToonUnlitCutout" 
 {
 	Properties
 	{
@@ -225,7 +225,6 @@
                 o.bindPose_col2 = float4(scale * normalize(v.normal.xyz), 0);//scale * float4(1,0,0,0); //float4(scale * normalize(v.normal.xyz), 0);
                 o.bindPose_col0 = float4(scale * normalize(v.tangent.xyz), 0);//scale * float4(0,1,0,0); //float4(scale * normalize(v.tangent.xyz), 0);
                 o.bindPose_col1 = float4(scale * v.tangent.w * cross(normalize(v.normal.xyz), normalize(v.tangent.xyz)), 0); // / scale//scale * float4(0,0,1,0); //
-                //o.bindPose_col1 = float4(scale * cross(normalize(v.normal.xyz), normalize(v.tangent.xyz)), 0); // / scale//scale * float4(0,0,1,0); //
                 o.bindPose_col3 = float4(v.vertex.xyz, 1);
                 o.color = v.color;
                 o.uv1 = v.uv1;
@@ -299,7 +298,7 @@
 #else
                 float2 uvflip = float2(1., 1.);
 #endif
-                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate, float2(.49,.49)) * 2. - float2(1.,1.)), 0., 1.);
+                o.vertex = float4(uvflip*(pixelToUV(pixelCoordinate, float2(.5,.5)) * 2. - float2(1.,1.)), 0., 1.);
                 ptstream.Append(o);
             }
 
@@ -329,21 +328,24 @@
                     appendPixelToStream(ptstream, float2(0, 6 + 5), newTransformMatrix._11_22_33_44.xyzw);
                 } else if (vertin[0].uv1.x >= 1.) {
                     // blend shape
-                    float blendValue = vertin[0].bindPose_col3.x;
+                    float blendValue = vertin[1].bindPose_col3.x;
 
                     appendPixelToStream(ptstream, float2(vertin[0].uv1.y, 4), float4(blendValue, 0.5, 1, 1.));
                 } else {
-                    float4x4 transformMatrix = CreateMatrixFromVert(vertin[0]);
                     float boneId = vertin[0].uv1.y;
+                    float parentBone = vertin[0].uv1.z;
+                    float4x4 transformMatrix = CreateMatrixFromVert(vertin[1]);
+                    float4x4 identity = float4x4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+                    float4x4 oldTransformMatrix = readBindTransform(boneId, 0);
+                    float4x4 parentTransformMatrix = readBindTransform(parentBone, 0);
+                    //transformMatrix = mul(parentTransformMatrix)
+                    //oldTransformMatrix. = lerp(oldTransformMatrix, transformMatrix, all(oldTransformMatrix._11_12_13_21 == 0.0) * all(oldTransformMatrix._22_23_31_32 == 0.0));
                     appendPixelToStream(ptstream, float2(1+boneId, 0), transformMatrix._11_21_31_41.yzwx);
                     appendPixelToStream(ptstream, float2(1+boneId, 1), transformMatrix._12_22_32_42.zwxy);
                     appendPixelToStream(ptstream, float2(1+boneId, 2), transformMatrix._13_23_33_43.wxyz);
                     appendPixelToStream(ptstream, float2(1+boneId, 3), transformMatrix._14_24_34_44.xyzw);
                     appendPixelToStream(ptstream, float2(1+boneId, 5), transformMatrix._11_22_33_44.xyzw);
 
-                    float4x4 identity = float4x4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
-                    float4x4 oldTransformMatrix = readBindTransform(boneId, 0);
-                    oldTransformMatrix = lerp(oldTransformMatrix, transformMatrix, all(oldTransformMatrix._11_12_13_21 == 0.0) * all(oldTransformMatrix._22_23_31_32 == 0.0));
                     float4x4 oldTransformMatrixRA = readBindTransform(boneId, 1);
                     oldTransformMatrixRA = lerp(oldTransformMatrixRA, transformMatrix, all(oldTransformMatrixRA._11_12_13_21 == 0.0) * all(oldTransformMatrixRA._22_23_31_32 == 0.0));
                     float4x4 newTransformMatrix = lerp(oldTransformMatrix, oldTransformMatrixRA, 0.95);
