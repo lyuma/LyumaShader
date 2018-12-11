@@ -137,7 +137,7 @@ float4 waifu_projectVertexWorldPos(float4 inVertex) {
 #define UnityObjectToClipPos waifu_projectVertexWorldPos
 #undef TRANSFER_SHADOW_CASTER_NOPOS_LEGACY
 #undef TRANSFER_SHADOW_CASTER_NOPOS
-#ifdef SHADOWS_CUBE
+#ifdef SHADOWS_CUBE && !defined(SHADOWS_CUBE_IN_DEPTH_TEX)
     #define TRANSFER_SHADOW_CASTER_NOPOS_LEGACY(o,opos) float4 actualWorldPos = waifu_computeVertexWorldPos(v.vertex); o.vec = actualWorldPos.xyz - _LightPositionRange.xyz; opos = UnityWorldToClipPos(actualWorldPos);
     #define TRANSFER_SHADOW_CASTER_NOPOS(o,opos) TRANSFER_SHADOW_CASTER_NOPOS_LEGACY(o,opos)
 #else
