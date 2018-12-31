@@ -165,7 +165,7 @@
             }
 
             [instance(numInstancePerVert)]//3)]
-            [maxvertexcount(24)]
+            [maxvertexcount(3)]//24)]
             void geom(triangle v2g vertin[3], inout TriangleStream<g2f> tristream,
                     uint primitiveID: SV_PrimitiveID, uint instanceID : SV_GSInstanceID)
             {
@@ -241,7 +241,7 @@
                 float4x4 boneTransform;
                 float4x4 worldTransform;
                 [unroll]
-                for (uint j = 0; j < 8; j++) {
+                for (uint j = 0; j < 1; j++) { // More than 1 crashes my Mac in unity 2017???! // j < 8; j++) {
                     if ((float)j > _TrailLength) {
                         break;
                     }
