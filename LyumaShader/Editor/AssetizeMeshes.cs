@@ -781,7 +781,7 @@ public class AssetizeMeshes : EditorWindow {
                 addVertices += s.sharedMesh.vertices.Length;
             }
         }
-        if (mf != null || smr != null) {
+        if (mf != null) {
             MeshFilter [] filters = trans.parent.GetComponentsInChildren<MeshFilter> (false);
             int x = Array.IndexOf (filters, mf);
             MeshFilter tmp = filters [0];
