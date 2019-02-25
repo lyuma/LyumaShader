@@ -4,13 +4,146 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+#if UNITY_EDITOR
+public class LyumaMeshTools : EditorWindow {
 
-public class AssetizeMeshes : EditorWindow {
+    [MenuItem ("CONTEXT/Mesh/\u2014\u2014LyumaMeshTools\u2014\u2014", true)]
+    [MenuItem ("CONTEXT/MeshFilter/\u2014\u2014LyumaMeshTools\u2014\u2014", true)]
+    [MenuItem ("CONTEXT/MeshRenderer/\u2014\u2014LyumaMeshTools\u2014\u2014", true)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/\u2014\u2014LyumaMeshTools\u2014\u2014", true)]
+    public static bool LyumaMeshToolsVal (MenuCommand command) {
+        return false;
+    }
 
-	[MenuItem ("CONTEXT/Mesh/Assetize Meshes")]
-	[MenuItem ("CONTEXT/MeshFilter/Assetize Meshes")]
-	[MenuItem ("CONTEXT/MeshRenderer/Assetize Meshes")]
-	[MenuItem ("CONTEXT/SkinnedMeshRenderer/Assetize Meshes")]
+    [MenuItem ("CONTEXT/Mesh/\u2014\u2014LyumaMeshTools\u2014\u2014", false, 130)]
+    [MenuItem ("CONTEXT/MeshFilter/\u2014\u2014LyumaMeshTools\u2014\u2014", false, 130)]
+    [MenuItem ("CONTEXT/MeshRenderer/\u2014\u2014LyumaMeshTools\u2014\u2014", false, 130)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/\u2014\u2014LyumaMeshTools\u2014\u2014", false, 130)]
+    public static void LyumaMeshToolsAct (MenuCommand command) {}
+
+
+    [MenuItem ("CONTEXT/Mesh/Merge UV and UV2 : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshFilter/Merge UV and UV2 : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshRenderer/Merge UV and UV2 : LMT", false, 131)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Merge UV and UV2 : LMT", false, 131)]
+    public static void RunMergeUVs (MenuCommand command)
+    {
+        Mesh sourceMesh;
+        SkinnedMeshRenderer smr = null;
+        MeshRenderer mr = null;
+        MeshFilter mf = null;
+        if (command.context is SkinnedMeshRenderer) {
+            smr = command.context as SkinnedMeshRenderer;
+            sourceMesh = smr.sharedMesh;
+        } else if (command.context is MeshRenderer) {
+            mr = command.context as MeshRenderer;
+            mf = mr.transform.GetComponent<MeshFilter> ();
+            sourceMesh = mf.sharedMesh;
+        } else if (command.context is MeshFilter) {
+            mf = command.context as MeshFilter;
+            sourceMesh = mf.sharedMesh;
+		} else if (command.context is Mesh) {
+			sourceMesh = command.context as Mesh;
+        } else {
+            EditorUtility.DisplayDialog ("MergeUVs", "Unknkown context type " + command.context.GetType ().FullName, "OK", "");
+            throw new NotSupportedException ("Unknkown context type " + command.context.GetType ().FullName);
+        }
+        Mesh newMesh = new Mesh ();
+        int size = sourceMesh.vertices.Length;
+        List<Vector2> srcUV = new List<Vector2>(); // will discard zw
+        List<Vector2> srcUV2 = new List<Vector2>(); // will discard zw
+        List<Vector4> srcUV3 = new List<Vector4>();
+        List<Vector4> srcUV4 = new List<Vector4>();
+        sourceMesh.GetUVs (0, srcUV);
+        sourceMesh.GetUVs (1, srcUV2);
+        sourceMesh.GetUVs (2, srcUV3);
+        sourceMesh.GetUVs (3, srcUV4);
+        if (srcUV.Count == 0) {
+            EditorUtility.DisplayDialog ("MergeUVs", "Source mesh has no UV!", "OK", "");
+            return;
+        }
+        if (srcUV2.Count == 0) {
+            EditorUtility.DisplayDialog ("MergeUVs", "Source mesh has no UV2!", "OK", "");
+            return;
+        }
+        Vector3 [] srcVertices = sourceMesh.vertices;
+        Color [] srcColors = sourceMesh.colors; // FIXME: Should use colors?
+        Vector3 [] srcNormals = sourceMesh.normals;
+        Vector4 [] srcTangents = sourceMesh.tangents;
+        Matrix4x4 [] srcBindposes = sourceMesh.bindposes;
+        BoneWeight [] srcBoneWeights = sourceMesh.boneWeights;
+        var newUV1 = new Vector4[size];
+        for (int i = 0; i < size; i++) {
+            Vector2 uv1 = srcUV [i];
+            Vector2 uv2 = srcUV2 [i];
+            newUV1 [i] = new Vector4 (uv1.x, uv1.y, uv2.x, uv2.y);
+        }
+        newMesh.vertices = srcVertices;
+        if (srcNormals != null && srcNormals.Length > 0) {
+            newMesh.normals = srcNormals;
+        }
+        if (srcTangents != null && srcTangents.Length > 0) {
+            newMesh.tangents = srcTangents;
+        }
+        if (srcBoneWeights != null && srcBoneWeights.Length > 0) {
+            newMesh.boneWeights = srcBoneWeights;
+        }
+        if (srcColors != null && srcColors.Length > 0) {
+            newMesh.colors = srcColors;
+        }
+        newMesh.SetUVs(0, new List<Vector4>(newUV1));
+        if (srcUV3.Count > 0) {
+            newMesh.SetUVs (2, srcUV3);
+        }
+        if (srcUV4.Count > 0) {
+            newMesh.SetUVs (3, srcUV4);
+        }
+        newMesh.subMeshCount = sourceMesh.subMeshCount;
+        for (int i = 0; i < sourceMesh.subMeshCount; i++) {
+            var curIndices = sourceMesh.GetIndices (i);
+            newMesh.SetIndices (curIndices, sourceMesh.GetTopology(i), i);
+        }
+        newMesh.bounds = sourceMesh.bounds;
+        if (srcBindposes != null && srcBindposes.Length > 0) {
+            newMesh.bindposes = sourceMesh.bindposes;
+        }
+        for (int i = 0; i < sourceMesh.blendShapeCount; i++) {
+            var blendShapeName = sourceMesh.GetBlendShapeName (i);
+            var blendShapeFrameCount = sourceMesh.GetBlendShapeFrameCount (i);
+            for (int frameIndex = 0; frameIndex < blendShapeFrameCount; frameIndex++) {
+                float weight = sourceMesh.GetBlendShapeFrameWeight(i, frameIndex);
+                Vector3 [] deltaVertices = new Vector3 [size];
+                Vector3 [] deltaNormals = new Vector3 [size];
+                Vector3 [] deltaTangents = new Vector3 [size];
+                sourceMesh.GetBlendShapeFrameVertices (i, frameIndex, deltaVertices, deltaNormals, deltaTangents);
+                newMesh.AddBlendShapeFrame (blendShapeName, weight, deltaVertices, deltaNormals, deltaTangents);
+            }
+        }
+        newMesh.name = sourceMesh.name + "_uvmerged";
+        Mesh meshAfterUpdate = newMesh;
+        if (smr != null) {
+            Undo.RecordObject (smr, "Switched SkinnedMeshRenderer to merged UVs");
+            smr.sharedMesh = newMesh;
+            meshAfterUpdate = smr.sharedMesh;
+            // No need to change smr.bones: should use same bone indices and blendshapes.
+        }
+        if (mf != null) {
+            Undo.RecordObject (mf, "Switched MeshFilter to merged UVs");
+            mf.sharedMesh = newMesh;
+            meshAfterUpdate = mf.sharedMesh;
+        }
+        string pathToGenerated = "Assets" + "/Generated";
+        if (!Directory.Exists (pathToGenerated)) {
+            Directory.CreateDirectory (pathToGenerated);
+        }
+        string fileName = pathToGenerated + "/ZZmergeuvs_" + DateTime.UtcNow.ToString ("s").Replace (':', '_') + ".asset";
+        AssetDatabase.CreateAsset (meshAfterUpdate, fileName);
+        AssetDatabase.SaveAssets ();
+    }
+	[MenuItem ("CONTEXT/Mesh/Assetize Meshes : LMT", false, 131)]
+	[MenuItem ("CONTEXT/MeshFilter/Assetize Meshes : LMT", false, 131)]
+	[MenuItem ("CONTEXT/MeshRenderer/Assetize Meshes : LMT", false, 131)]
+	[MenuItem ("CONTEXT/SkinnedMeshRenderer/Assetize Meshes : LMT", false, 131)]
 	public static void RunAssetizeMeshes (MenuCommand command)
     {
         Mesh sourceMesh;
@@ -48,8 +181,8 @@ public class AssetizeMeshes : EditorWindow {
 		parentName += sourceMesh.name;
         Mesh newMesh = new Mesh ();
         int size = sourceMesh.vertices.Length;
-        List<Vector2> srcUV = new List<Vector2>(); // will discard zw
-        List<Vector2> srcUV2 = new List<Vector2>(); // will discard zw
+        List<Vector4> srcUV = new List<Vector4>();
+        List<Vector4> srcUV2 = new List<Vector4>();
         List<Vector4> srcUV3 = new List<Vector4>();
         List<Vector4> srcUV4 = new List<Vector4>();
         sourceMesh.GetUVs (0, srcUV);
@@ -136,10 +269,10 @@ public class AssetizeMeshes : EditorWindow {
 		}
     }
 
-    [MenuItem ("CONTEXT/Mesh/Add Shadow")]
-    [MenuItem ("CONTEXT/MeshFilter/Add Shadow")]
-    [MenuItem ("CONTEXT/MeshRenderer/Add Shadow")]
-    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Add Shadow")]
+    [MenuItem ("CONTEXT/Mesh/Add Shadow : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshFilter/Add Shadow : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshRenderer/Add Shadow : LMT", false, 131)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Add Shadow : LMT", false, 131)]
     public static void RunAddShadow (MenuCommand command)
     {
         Mesh sourceMesh;
@@ -270,8 +403,16 @@ public class AssetizeMeshes : EditorWindow {
         }
     }
 
-    [MenuItem ("CONTEXT/MeshRenderer/Combine same material")]
-    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Combine same material")]
+    [MenuItem ("CONTEXT/Mesh/Combine same material : LMT [Requires renderer]", true)]
+    [MenuItem ("CONTEXT/MeshFilter/Combine same material : LMT [Requires renderer]", true)]
+    public static bool RunCombineSameMaterialVal (MenuCommand command) {
+        return false;
+    }
+
+    [MenuItem ("CONTEXT/Mesh/Combine same material : LMT [Requires renderer]", false, 131)]
+    [MenuItem ("CONTEXT/MeshFilter/Combine same material : LMT [Requires renderer]", false, 131)]
+    [MenuItem ("CONTEXT/MeshRenderer/Combine same material : LMT", false, 131)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Combine same material : LMT", false, 131)]
     public static void RunCombineSameMaterial (MenuCommand command)
     {
         Mesh sourceMesh;
@@ -412,8 +553,16 @@ public class AssetizeMeshes : EditorWindow {
         }
     }
 
-    [MenuItem ("CONTEXT/Mesh/Keyframe Blend shapes")]
-    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Keyframe Blend shapes")]
+    [MenuItem ("CONTEXT/MeshRenderer/Keyframe Blend shapes : LMT [Requires skin]", true)]
+    [MenuItem ("CONTEXT/MeshFilter/Keyframe Blend shapes : LMT [Requires skin]", true)]
+    public static bool RunKeyframeBlendShapesVal (MenuCommand command) {
+        return false;
+    }
+
+    [MenuItem ("CONTEXT/MeshRenderer/Keyframe Blend shapes : LMT [Requires skin]", false, 131)]
+    [MenuItem ("CONTEXT/MeshFilter/Keyframe Blend shapes : LMT [Requires skin]", false, 131)]
+    [MenuItem ("CONTEXT/Mesh/Keyframe Blend shapes : LMT", false, 131)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Keyframe Blend shapes : LMT", false, 131)]
     public static void RunKeyframeBlendShapes (MenuCommand command)
     {
         Mesh sourceMesh;
@@ -572,10 +721,10 @@ public class AssetizeMeshes : EditorWindow {
         }
     }
 
-    [MenuItem ("CONTEXT/Mesh/Remove First Mat")]
-    [MenuItem ("CONTEXT/MeshFilter/Remove First Mat")]
-    [MenuItem ("CONTEXT/MeshRenderer/Remove First Mat")]
-    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Remove First Mat")]
+    [MenuItem ("CONTEXT/Mesh/Remove First Mat : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshFilter/Remove First Mat : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshRenderer/Remove First Mat : LMT", false, 131)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Remove First Mat : LMT", false, 131)]
     public static void RunRemoveFirstMat (MenuCommand command)
     {
         Mesh sourceMesh;
@@ -703,9 +852,15 @@ public class AssetizeMeshes : EditorWindow {
     }
 
 
-    [MenuItem ("CONTEXT/MeshFilter/Combine Mesh Siblings")]
-    [MenuItem ("CONTEXT/MeshRenderer/Combine Mesh Siblings")]
-    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Combine Mesh Siblings")]
+    [MenuItem ("CONTEXT/Mesh/Combine Mesh Siblings : LMT [Requires GameObject]", true)]
+    public static bool RunCombineSiblingMeshesVal (MenuCommand command) {
+        return false;
+    }
+
+    [MenuItem ("CONTEXT/Mesh/Combine Mesh Siblings : LMT [Requires GameObject]", false, 131)]
+    [MenuItem ("CONTEXT/MeshFilter/Combine Mesh Siblings : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshRenderer/Combine Mesh Siblings : LMT", false, 131)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Combine Mesh Siblings : LMT", false, 131)]
     public static void RunCombineSiblingMeshes (MenuCommand command)
     {
         Mesh sourceMesh;
@@ -1020,3 +1175,4 @@ public class AssetizeMeshes : EditorWindow {
         }
     }
 }
+#endif
