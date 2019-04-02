@@ -553,6 +553,205 @@ public class LyumaMeshTools : EditorWindow {
         }
     }
 
+    static float uvOffset = 0;
+
+    [MenuItem ("CONTEXT/Mesh/Make Skinned Parent+Child : LMT", true)]
+    [MenuItem ("CONTEXT/MeshRenderer/Make Skinned : LMT [use MeshFilter]", true)]
+    public static bool RunMakeSkinnedVal (MenuCommand command) {
+        return false;
+    }
+
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Skin to child : LMT", false, 131)]
+    [MenuItem ("CONTEXT/Mesh/Make Skinned Parent+Child : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshFilter/Make Skinned Parent+Child : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshRenderer/Make Skinned : LMT [use MeshFilter]", false, 131)]
+    public static void RunMakeSkinned (MenuCommand command)
+    {
+        SkinnedMeshRenderer smr;
+        if (command.context is MeshFilter) {
+            MeshFilter mf = command.context as MeshFilter;
+            GameObject go = mf.gameObject;
+
+            if (go.GetComponent<MeshRenderer>() == null) {
+                EditorUtility.DisplayDialog ("LyumaMeshTools", "object must have a MeshRenderer.", "OK", "");
+                return;
+            }
+            //Undo.RecordObject (go, "Switched SkinnedMeshRenderer to bone");
+            smr = Undo.AddComponent<SkinnedMeshRenderer>(go);
+            smr.rootBone = go.transform.parent;
+        } else {
+            smr = command.context as SkinnedMeshRenderer;
+        }
+        Transform trans = smr.transform;
+        Mesh sourceMesh = smr.sharedMesh;
+        string parentName = "";
+        Transform child = null;
+        if (trans.childCount == 1) {
+            child = trans.GetChild (0);
+        } else {
+            EditorUtility.DisplayDialog ("LyumaMeshTools", "Skinned mesh Must have a single child.", "OK", "");
+            return;
+        }
+        if (smr.rootBone == null) {
+            EditorUtility.DisplayDialog ("LyumaMeshTools", "Skinned mesh Must have a root bone assigned.", "OK", "");
+            return;
+        }
+        if (smr.rootBone.transform == smr.transform) {
+            if (!EditorUtility.DisplayDialog ("LyumaMeshTools", "Skinned mesh should have a different transform set as root bone.", "Continue", "Cancel")) {
+                return;
+            }
+        }
+        parentName = trans.name + "_";
+        bool staticNormal = trans.name.Contains("NONORMAL");
+        bool relativeNormal = trans.name.Contains("NORMALREL");
+        bool staticPosition = trans.name.Contains("NOPOSITION");
+        bool relativePosition = trans.name.Contains("POSITIONREL");
+        Mesh newMesh = new Mesh ();
+        int size = sourceMesh.vertices.Length;
+        List<Vector4> srcUV = new List<Vector4> ();
+        List<Vector4> srcUV2 = new List<Vector4> ();
+        List<Vector4> srcUV3 = new List<Vector4> ();
+        List<Vector4> srcUV4 = new List<Vector4> ();
+        sourceMesh.GetUVs (0, srcUV);
+        sourceMesh.GetUVs (1, srcUV2);
+        sourceMesh.GetUVs (2, srcUV3);
+        sourceMesh.GetUVs (3, srcUV4);
+        Vector3 [] srcVertices = sourceMesh.vertices;
+        Color [] srcColors = sourceMesh.colors; // Forces to half precision?
+        Vector3 [] srcNormals = sourceMesh.normals;
+        Vector4 [] srcTangents = sourceMesh.tangents;
+        Matrix4x4 [] srcBindposes = sourceMesh.bindposes;
+        BoneWeight [] srcBoneWeights = sourceMesh.boneWeights;
+        Matrix4x4 invchildmatrix4 = smr.transform.worldToLocalMatrix * child.localToWorldMatrix;
+        for (int i = 0; i < srcVertices.Length; i++) {
+            if (staticPosition) {
+                srcVertices [i] = new Vector3(0, 0, 0);
+            }
+            if (!relativePosition) {
+                srcVertices [i] = invchildmatrix4.MultiplyPoint3x4 (srcVertices [i]);
+            }
+        }
+        newMesh.vertices = srcVertices;
+        if (srcNormals != null && srcNormals.Length > 0) {
+            for (int i = 0; i < srcNormals.Length; i++) {
+                if (staticNormal) {
+                    srcNormals [i] = new Vector3(0, 0, 1);
+                }
+                if (!relativeNormal) {
+                    srcNormals [i] = invchildmatrix4.MultiplyVector (srcNormals [i]);
+                }
+            }
+            newMesh.normals = srcNormals;
+        }
+        if (srcTangents != null && srcTangents.Length > 0) {
+            for (int i = 0; i < srcTangents.Length; i++) {
+                if (staticNormal) {
+                    srcTangents [i] = new Vector4 (1, 0, 0, 1);
+                }
+                if (!relativeNormal) {
+                    Vector3 mulout = invchildmatrix4.MultiplyVector ((Vector3)srcTangents [i]);
+                    srcTangents [i] = new Vector4(mulout.x, mulout.y, mulout.z, srcTangents[i].w);
+                }
+            }
+            newMesh.tangents = srcTangents;
+        }
+        {
+            BoneWeight [] newBoneWeights = new BoneWeight [srcVertices.Length];
+            for (int i = 0; i < srcVertices.Length; i++) {
+                BoneWeight bw = new BoneWeight ();
+                if (child == null) {
+                    bw.boneIndex1 = 0;
+                    bw.weight1 = 1.0f;
+                } else {
+                    bw.boneIndex0 = 1;
+                    bw.weight0 = 0.99999f;
+                    bw.boneIndex1 = 0;
+                    bw.weight1 = 0.00001f;
+                }
+                newBoneWeights [i] = bw;
+            }
+            newMesh.boneWeights = newBoneWeights;
+        }
+        if (srcColors != null && srcColors.Length > 0) {
+            newMesh.colors = srcColors;
+        }
+        if (srcUV.Count > 0) {
+            bool resetCount = EditorUtility.DisplayDialog ("Make Skinned", "Reset uv.z value? (Currently " + uvOffset + ")", "No UV / Reset to 0", "Use " + uvOffset);
+            if (resetCount) {
+                uvOffset = 0;
+            } else {
+                for (int i = 0; i < srcUV.Count; i++) {
+                    Vector4 origI = srcUV [i];
+                    origI.z = uvOffset;
+                    srcUV [i] = origI;
+                }
+                newMesh.SetUVs (0, srcUV);
+            }
+            uvOffset++;
+        }
+        if (srcUV2.Count > 0) {
+            newMesh.SetUVs (1, srcUV2);
+        }
+        if (srcUV3.Count > 0) {
+            newMesh.SetUVs (2, srcUV3);
+        }
+        if (srcUV4.Count > 0) {
+            newMesh.SetUVs (3, srcUV4);
+        }
+        newMesh.subMeshCount = sourceMesh.subMeshCount;
+        for (int i = 0; i < sourceMesh.subMeshCount; i++) {
+            var curIndices = sourceMesh.GetIndices (i);
+            newMesh.SetIndices (curIndices, sourceMesh.GetTopology (i), i);
+        }
+        newMesh.bounds = sourceMesh.bounds;
+        if (child == null) {
+            Matrix4x4 rootmatrix = smr.rootBone.worldToLocalMatrix * smr.transform.localToWorldMatrix;
+            newMesh.bindposes = new Matrix4x4 [] { rootmatrix };
+        } else {
+            Matrix4x4 childmatrix4 = child.worldToLocalMatrix * smr.transform.localToWorldMatrix;
+            Matrix4x4 rootmatrix = smr.rootBone.worldToLocalMatrix * smr.transform.localToWorldMatrix;
+            newMesh.bindposes = new Matrix4x4[] { rootmatrix, childmatrix4 };
+        }
+        for (int i = 0; i < sourceMesh.blendShapeCount; i++) {
+            var blendShapeName = sourceMesh.GetBlendShapeName (i);
+            var blendShapeFrameCount = sourceMesh.GetBlendShapeFrameCount (i);
+            for (int frameIndex = 0; frameIndex < blendShapeFrameCount; frameIndex++) {
+                float weight = sourceMesh.GetBlendShapeFrameWeight (i, frameIndex);
+                Vector3 [] deltaVertices = new Vector3 [size];
+                Vector3 [] deltaNormals = new Vector3 [size];
+                Vector3 [] deltaTangents = new Vector3 [size];
+                sourceMesh.GetBlendShapeFrameVertices (i, frameIndex, deltaVertices, deltaNormals, deltaTangents);
+                newMesh.AddBlendShapeFrame (blendShapeName, weight, deltaVertices, deltaNormals, deltaTangents);
+            }
+        }
+        newMesh.name = sourceMesh.name + "_uvmerged";
+        Mesh meshAfterUpdate = newMesh;
+        if (smr != null) {
+            Undo.RecordObject (smr, "Switched SkinnedMeshRenderer to bone");
+            if (child == null) {
+                smr.bones = new Transform [] { smr.transform.parent }; //smr.transform };
+            } else {
+                smr.bones = new Transform [] { smr.transform.parent, child }; //smr.transform };
+            }
+            smr.sharedMesh = newMesh;
+            meshAfterUpdate = smr.sharedMesh;
+            // No need to change smr.bones: should use same bone indices and blendshapes.
+        }
+        string pathToGenerated = "Assets" + "/Generated";
+        if (!Directory.Exists (pathToGenerated)) {
+            Directory.CreateDirectory (pathToGenerated);
+        }
+        int lastSlash = parentName.LastIndexOf ('/');
+        string outFileName = lastSlash == -1 ? parentName : parentName.Substring (lastSlash + 1);
+        outFileName = outFileName.Split ('.') [0];
+        string fileName = pathToGenerated + "/" + outFileName + "_boned_" + DateTime.UtcNow.ToString ("s").Replace (':', '_') + ".asset";
+        AssetDatabase.CreateAsset (meshAfterUpdate, fileName);
+        AssetDatabase.SaveAssets ();
+        //if (smr == null && mf == null) {
+        //    EditorGUIUtility.PingObject (meshAfterUpdate);
+        //}
+    }
+
     [MenuItem ("CONTEXT/MeshRenderer/Keyframe Blend shapes : LMT [Requires skin]", true)]
     [MenuItem ("CONTEXT/MeshFilter/Keyframe Blend shapes : LMT [Requires skin]", true)]
     public static bool RunKeyframeBlendShapesVal (MenuCommand command) {
