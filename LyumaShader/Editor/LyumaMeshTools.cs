@@ -561,13 +561,14 @@ public class LyumaMeshTools : EditorWindow {
         return false;
     }
 
-    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Skin to child : LMT", false, 131)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Make Skinned Parent+Child : LMT", false, 131)]
     [MenuItem ("CONTEXT/Mesh/Make Skinned Parent+Child : LMT", false, 131)]
     [MenuItem ("CONTEXT/MeshFilter/Make Skinned Parent+Child : LMT", false, 131)]
     [MenuItem ("CONTEXT/MeshRenderer/Make Skinned : LMT [use MeshFilter]", false, 131)]
     public static void RunMakeSkinned (MenuCommand command)
     {
         SkinnedMeshRenderer smr;
+        Material[] materialList = null;
         if (command.context is MeshFilter) {
             MeshFilter mf = command.context as MeshFilter;
             GameObject go = mf.gameObject;
@@ -576,6 +577,7 @@ public class LyumaMeshTools : EditorWindow {
                 EditorUtility.DisplayDialog ("LyumaMeshTools", "object must have a MeshRenderer.", "OK", "");
                 return;
             }
+            materialList = go.GetComponent<MeshRenderer>().sharedMaterials;
             //Undo.RecordObject (go, "Switched SkinnedMeshRenderer to bone");
             smr = Undo.AddComponent<SkinnedMeshRenderer>(go);
             smr.rootBone = go.transform.parent;
@@ -623,6 +625,25 @@ public class LyumaMeshTools : EditorWindow {
         Matrix4x4 [] srcBindposes = sourceMesh.bindposes;
         BoneWeight [] srcBoneWeights = sourceMesh.boneWeights;
         Matrix4x4 invchildmatrix4 = smr.transform.worldToLocalMatrix * child.localToWorldMatrix;
+        if (srcUV.Count > 0) {
+            bool resetCount = EditorUtility.DisplayDialog ("Make Skinned", "Reset uv.z value? (Currently " + uvOffset + ")", "No UV / Reset to 0", "Use " + uvOffset);
+            if (resetCount) {
+                uvOffset = 0;
+            }
+            if (!resetCount || staticPosition) {
+                for (int i = 0; i < srcUV.Count; i++) {
+                    Vector4 origI = srcUV [i];
+                    if (staticPosition) {
+                        origI.x = srcVertices[i].x;
+                        origI.y = srcVertices[i].y;
+                        origI.w = srcVertices[i].z;
+                    }
+                    origI.z = uvOffset;
+                    srcUV [i] = origI;
+                }
+            }
+            uvOffset++;
+        }
         for (int i = 0; i < srcVertices.Length; i++) {
             if (staticPosition) {
                 srcVertices [i] = new Vector3(0, 0, 0);
@@ -676,18 +697,7 @@ public class LyumaMeshTools : EditorWindow {
             newMesh.colors = srcColors;
         }
         if (srcUV.Count > 0) {
-            bool resetCount = EditorUtility.DisplayDialog ("Make Skinned", "Reset uv.z value? (Currently " + uvOffset + ")", "No UV / Reset to 0", "Use " + uvOffset);
-            if (resetCount) {
-                uvOffset = 0;
-            } else {
-                for (int i = 0; i < srcUV.Count; i++) {
-                    Vector4 origI = srcUV [i];
-                    origI.z = uvOffset;
-                    srcUV [i] = origI;
-                }
-                newMesh.SetUVs (0, srcUV);
-            }
-            uvOffset++;
+            newMesh.SetUVs (0, srcUV);
         }
         if (srcUV2.Count > 0) {
             newMesh.SetUVs (1, srcUV2);
@@ -734,6 +744,9 @@ public class LyumaMeshTools : EditorWindow {
                 smr.bones = new Transform [] { smr.transform.parent, child }; //smr.transform };
             }
             smr.sharedMesh = newMesh;
+            if (materialList != null) {
+                smr.sharedMaterials = materialList;
+            }
             meshAfterUpdate = smr.sharedMesh;
             // No need to change smr.bones: should use same bone indices and blendshapes.
         }
@@ -1093,6 +1106,7 @@ public class LyumaMeshTools : EditorWindow {
         Dictionary<Transform, int> boneTransToIndex = new Dictionary<Transform, int> ();
         SkinnedMeshRenderer [] renderers = null;
 
+        List<Matrix4x4> siblingRelativeMatrices = null;
         List<Mesh> siblingMeshes = new List<Mesh> ();
         List<Material> addMaterials = new List<Material> ();
         List<int> addSubMeshCount = new List<int>();
@@ -1141,6 +1155,7 @@ public class LyumaMeshTools : EditorWindow {
             MeshFilter tmp = filters [0];
             filters [0] = mf;
             filters [x] = tmp;
+            siblingRelativeMatrices = new List<Matrix4x4>();
             foreach (MeshFilter s in filters) {
                 MeshRenderer thismr = s.GetComponent<MeshRenderer> ();
                 if (mr != null && thismr != null) {
@@ -1156,6 +1171,7 @@ public class LyumaMeshTools : EditorWindow {
                     addSubMeshCount.Add (s.sharedMesh.subMeshCount);
                     addSubMeshes += s.sharedMesh.subMeshCount;
                 }
+                siblingRelativeMatrices.Add ( mf.transform.worldToLocalMatrix * thismr.transform.localToWorldMatrix );
                 siblingMeshes.Add (s.sharedMesh);
                 baseVertex.Add (addVertices);
                 if (s.sharedMesh.vertices.Length > 65535) {
@@ -1200,9 +1216,24 @@ public class LyumaMeshTools : EditorWindow {
             thisMesh.GetUVs (2, srcUV3);
             thisMesh.GetUVs (3, srcUV4);
             thisMesh.GetVertices (srcVertices);
+            if (siblingRelativeMatrices != null) {
+                for (int i = 0; i < srcVertices.Count; i++) {
+                    srcVertices[i] = siblingRelativeMatrices[subi].MultiplyPoint(srcVertices[i]);
+                }
+            }
             thisMesh.GetColors (srcColors);
             thisMesh.GetNormals (srcNormals);
+            if (siblingRelativeMatrices != null) {
+                for (int i = 0; i < srcNormals.Count; i++) {
+                    srcNormals[i] = siblingRelativeMatrices[subi].MultiplyVector(srcNormals[i]);
+                }
+            }
             thisMesh.GetTangents (srcTangents);
+            if (siblingRelativeMatrices != null) {
+                for (int i = 0; i < srcTangents.Count; i++) {
+                    srcTangents[i] = siblingRelativeMatrices[subi].MultiplyVector(srcTangents[i]);
+                }
+            }
             thisMesh.GetBoneWeights (srcBoneWeights);
             if (srcUV.Count > 0) {
                 finalUV.AddRange (Enumerable.Repeat (new Vector4 (0, 0, 0, 0), finalVertices.Count - finalUV.Count));
@@ -1283,6 +1314,7 @@ public class LyumaMeshTools : EditorWindow {
         }
         if (srcBindposes != null && srcBindposes.Length > 0) {
             newMesh.bindposes = srcBindposes;
+            // FIXME: We do not adjust relative matrices of bindposes... is this necessary?
         }
         newMesh.SetVertices(finalVertices);
         if (finalNormals != null && finalNormals.Count > 0) {
@@ -1339,6 +1371,8 @@ public class LyumaMeshTools : EditorWindow {
                 Array.Copy (deltaNormals, newDeltaNormals, size);
                 Array.Copy (deltaTangents, newDeltaTangents, size);
                 newMesh.AddBlendShapeFrame (blendShapeName, weight, newDeltaVertices, newDeltaNormals, newDeltaTangents);
+                // FIXME: Merge in blendshapes from sibling meshes.
+                // FIXME: We do not adjust blendshapes based on relative bindpose matrices.
             }
         }
         newMesh.name = sourceMesh.name + "_merged";
