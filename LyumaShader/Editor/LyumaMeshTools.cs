@@ -22,6 +22,117 @@ public class LyumaMeshTools : EditorWindow {
     public static void LyumaMeshToolsAct (MenuCommand command) {}
 
 
+    [MenuItem ("CONTEXT/Mesh/Vertex position to UV2 : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshFilter/Vertex position to UV2 : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshRenderer/Vertex position to UV2 : LMT", false, 131)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Vertex position to UV2 : LMT", false, 131)]
+    public static void RunBakeObjectPos (MenuCommand command)
+    {
+        Mesh sourceMesh;
+        SkinnedMeshRenderer smr = null;
+        MeshRenderer mr = null;
+        MeshFilter mf = null;
+        if (command.context is SkinnedMeshRenderer) {
+            smr = command.context as SkinnedMeshRenderer;
+            sourceMesh = smr.sharedMesh;
+        } else if (command.context is MeshRenderer) {
+            mr = command.context as MeshRenderer;
+            mf = mr.transform.GetComponent<MeshFilter> ();
+            sourceMesh = mf.sharedMesh;
+        } else if (command.context is MeshFilter) {
+            mf = command.context as MeshFilter;
+            sourceMesh = mf.sharedMesh;
+		} else if (command.context is Mesh) {
+			sourceMesh = command.context as Mesh;
+        } else {
+            EditorUtility.DisplayDialog ("MergeUVs", "Unknkown context type " + command.context.GetType ().FullName, "OK", "");
+            throw new NotSupportedException ("Unknkown context type " + command.context.GetType ().FullName);
+        }
+        Mesh newMesh = new Mesh ();
+        int size = sourceMesh.vertices.Length;
+        List<Vector4> srcUV = new List<Vector4>();
+        List<Vector4> srcUV3 = new List<Vector4>();
+        List<Vector4> srcUV4 = new List<Vector4>();
+        sourceMesh.GetUVs (0, srcUV);
+        sourceMesh.GetUVs (2, srcUV3);
+        sourceMesh.GetUVs (3, srcUV4);
+        Vector3 [] srcVertices = sourceMesh.vertices;
+        Color [] srcColors = sourceMesh.colors; // FIXME: Should use colors?
+        Vector3 [] srcNormals = sourceMesh.normals;
+        Vector4 [] srcTangents = sourceMesh.tangents;
+        Matrix4x4 [] srcBindposes = sourceMesh.bindposes;
+        BoneWeight [] srcBoneWeights = sourceMesh.boneWeights;
+        var newUV2 = new Vector4[size];
+        for (int i = 0; i < size; i++) {
+            newUV2 [i] = new Vector4 (srcVertices[i].x, srcVertices[i].y, srcVertices[i].z, 0);
+        }
+        newMesh.vertices = srcVertices;
+        if (srcNormals != null && srcNormals.Length > 0) {
+            newMesh.normals = srcNormals;
+        }
+        if (srcTangents != null && srcTangents.Length > 0) {
+            newMesh.tangents = srcTangents;
+        }
+        if (srcBoneWeights != null && srcBoneWeights.Length > 0) {
+            newMesh.boneWeights = srcBoneWeights;
+        }
+        if (srcColors != null && srcColors.Length > 0) {
+            newMesh.colors = srcColors;
+        }
+        if (srcUV.Count > 0) {
+            newMesh.SetUVs (0, srcUV);
+        }
+        newMesh.SetUVs(1, new List<Vector4>(newUV2));
+        if (srcUV3.Count > 0) {
+            newMesh.SetUVs (2, srcUV3);
+        }
+        if (srcUV4.Count > 0) {
+            newMesh.SetUVs (3, srcUV4);
+        }
+        newMesh.subMeshCount = sourceMesh.subMeshCount;
+        for (int i = 0; i < sourceMesh.subMeshCount; i++) {
+            var curIndices = sourceMesh.GetIndices (i);
+            newMesh.SetIndices (curIndices, sourceMesh.GetTopology(i), i);
+        }
+        newMesh.bounds = sourceMesh.bounds;
+        if (srcBindposes != null && srcBindposes.Length > 0) {
+            newMesh.bindposes = sourceMesh.bindposes;
+        }
+        for (int i = 0; i < sourceMesh.blendShapeCount; i++) {
+            var blendShapeName = sourceMesh.GetBlendShapeName (i);
+            var blendShapeFrameCount = sourceMesh.GetBlendShapeFrameCount (i);
+            for (int frameIndex = 0; frameIndex < blendShapeFrameCount; frameIndex++) {
+                float weight = sourceMesh.GetBlendShapeFrameWeight(i, frameIndex);
+                Vector3 [] deltaVertices = new Vector3 [size];
+                Vector3 [] deltaNormals = new Vector3 [size];
+                Vector3 [] deltaTangents = new Vector3 [size];
+                sourceMesh.GetBlendShapeFrameVertices (i, frameIndex, deltaVertices, deltaNormals, deltaTangents);
+                newMesh.AddBlendShapeFrame (blendShapeName, weight, deltaVertices, deltaNormals, deltaTangents);
+            }
+        }
+        newMesh.name = sourceMesh.name + "_uvmerged";
+        Mesh meshAfterUpdate = newMesh;
+        if (smr != null) {
+            Undo.RecordObject (smr, "Switched SkinnedMeshRenderer to merged UVs");
+            smr.sharedMesh = newMesh;
+            meshAfterUpdate = smr.sharedMesh;
+            // No need to change smr.bones: should use same bone indices and blendshapes.
+        }
+        if (mf != null) {
+            Undo.RecordObject (mf, "Switched MeshFilter to merged UVs");
+            mf.sharedMesh = newMesh;
+            meshAfterUpdate = mf.sharedMesh;
+        }
+        string pathToGenerated = "Assets" + "/Generated";
+        if (!Directory.Exists (pathToGenerated)) {
+            Directory.CreateDirectory (pathToGenerated);
+        }
+        string fileName = pathToGenerated + "/ZZmergeuvs_" + DateTime.UtcNow.ToString ("s").Replace (':', '_') + ".asset";
+        AssetDatabase.CreateAsset (meshAfterUpdate, fileName);
+        AssetDatabase.SaveAssets ();
+    }
+
+
     [MenuItem ("CONTEXT/Mesh/Merge UV and UV2 : LMT", false, 131)]
     [MenuItem ("CONTEXT/MeshFilter/Merge UV and UV2 : LMT", false, 131)]
     [MenuItem ("CONTEXT/MeshRenderer/Merge UV and UV2 : LMT", false, 131)]
@@ -935,8 +1046,8 @@ public class LyumaMeshTools : EditorWindow {
 
     [MenuItem ("CONTEXT/Mesh/Remove First Mat : LMT", false, 131)]
     [MenuItem ("CONTEXT/MeshFilter/Remove First Mat : LMT", false, 131)]
-    [MenuItem ("CONTEXT/MeshRenderer/Remove First Mat : LMT", false, 131)]
-    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Remove First Mat : LMT", false, 131)]
+    [MenuItem ("CONTEXT/MeshRenderer/Remove Null Mats : LMT", false, 131)]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Remove Null Mats : LMT", false, 131)]
     public static void RunRemoveFirstMat (MenuCommand command)
     {
         Mesh sourceMesh;
@@ -945,15 +1056,18 @@ public class LyumaMeshTools : EditorWindow {
         MeshFilter mf = null;
         Transform trans = null;
         string parentName = "";
+        Material[] materials = null;
         if (command.context is SkinnedMeshRenderer) {
             smr = command.context as SkinnedMeshRenderer;
             trans = smr.transform;
             sourceMesh = smr.sharedMesh;
+            materials = smr.sharedMaterials;
         } else if (command.context is MeshRenderer) {
             mr = command.context as MeshRenderer;
             mf = mr.transform.GetComponent<MeshFilter> ();
             trans = mr.transform;
             sourceMesh = mf.sharedMesh;
+            materials = mr.sharedMaterials;
         } else if (command.context is MeshFilter) {
             mf = command.context as MeshFilter;
             trans = mf.transform;
@@ -1013,10 +1127,29 @@ public class LyumaMeshTools : EditorWindow {
         if (srcUV4.Count > 0) {
             newMesh.SetUVs (3, srcUV4);
         }
-        newMesh.subMeshCount = sourceMesh.subMeshCount - 1;
-        for (int i = 1; i < sourceMesh.subMeshCount; i++) {
-            var curIndices = sourceMesh.GetIndices (i);
-            newMesh.SetIndices (curIndices, sourceMesh.GetTopology (i), i - 1);
+        int newSubmeshCount = 0;//materials
+        for (int i = 0; i < sourceMesh.subMeshCount; i++) {
+            if ((materials == null && i > 0) || (materials != null && i < materials.Length && materials[i] != null)) {
+                newSubmeshCount++;
+            }
+        }
+        Material[] newMaterials = new Material[newSubmeshCount];
+        newMesh.subMeshCount = newSubmeshCount;
+        int outSubmesh = 0;
+        for (int i = 0; i < sourceMesh.subMeshCount; i++) {
+            if ((materials == null && i > 0) || (materials != null && i < materials.Length && materials[i] != null)) {
+                if (materials != null) {
+                    newMaterials[outSubmesh] = materials[i];
+                }
+                var curIndices = sourceMesh.GetIndices (i);
+                /*if (i == 2) {
+                    int[] newIndices = new int[curIndices.Length - 46 * 3];
+                    Array.Copy(curIndices , newIndices , newIndices.Length);
+                    curIndices = newIndices;
+                }*/
+                newMesh.SetIndices (curIndices, sourceMesh.GetTopology (i), outSubmesh);
+                outSubmesh++;
+            }
         }
         newMesh.bounds = sourceMesh.bounds;
         if (srcBindposes != null && srcBindposes.Length > 0) {
@@ -1037,11 +1170,14 @@ public class LyumaMeshTools : EditorWindow {
         newMesh.name = sourceMesh.name + "_shadow";
         Mesh meshAfterUpdate = newMesh;
         if (smr != null) {
-            Undo.RecordObject (smr, "Switched SkinnedMeshRenderer to Remove First Mat");
+            Undo.RecordObject (smr, "Switched SkinnedMeshRenderer to Remove Null Mats");
             smr.sharedMesh = newMesh;
-            smr.sharedMaterials = smr.sharedMaterials.Skip (1).ToArray();
+            smr.sharedMaterials = newMaterials;
             meshAfterUpdate = smr.sharedMesh;
             // No need to change smr.bones: should use same bone indices and blendshapes.
+        }
+        if (mr != null) {
+            mr.sharedMaterials = newMaterials;
         }
         if (mf != null) {
             Undo.RecordObject (mf, "Switched MeshFilter to Remove First Mat");
@@ -1200,6 +1336,8 @@ public class LyumaMeshTools : EditorWindow {
         List<Vector3> finalNormals = new List<Vector3> (); 
         List<Vector4> finalTangents = new List<Vector4> ();
         List<BoneWeight> finalBoneWeights = new List<BoneWeight> ();
+        int[] meshesVertexCount = new int[siblingMeshes.Count];
+        int[] meshesVertexOffset = new int[siblingMeshes.Count];
         int subi = 0;
         foreach (Mesh thisMesh in siblingMeshes) {
             List<Vector4> srcUV = new List<Vector4> ();
@@ -1221,6 +1359,9 @@ public class LyumaMeshTools : EditorWindow {
                     srcVertices[i] = siblingRelativeMatrices[subi].MultiplyPoint(srcVertices[i]);
                 }
             }
+            meshesVertexCount[subi] = srcVertices.Count;
+            meshesVertexOffset[subi] = finalVertices.Count;
+
             thisMesh.GetColors (srcColors);
             thisMesh.GetNormals (srcNormals);
             if (siblingRelativeMatrices != null) {
@@ -1355,24 +1496,56 @@ public class LyumaMeshTools : EditorWindow {
             newMesh.bounds = new Bounds(sourceMesh.bounds.center, sourceMesh.bounds.extents);
             newMesh.bounds.Encapsulate (siblingMeshes [subi].bounds);
         }
-        for (int i = 0; i < sourceMesh.blendShapeCount; i++) {
-            var blendShapeName = sourceMesh.GetBlendShapeName (i);
-            var blendShapeFrameCount = sourceMesh.GetBlendShapeFrameCount (i);
-            for (int frameIndex = 0; frameIndex < blendShapeFrameCount; frameIndex++) {
-                float weight = sourceMesh.GetBlendShapeFrameWeight (i, frameIndex);
-                Vector3 [] deltaVertices = new Vector3 [size];
-                Vector3 [] deltaNormals = new Vector3 [size];
-                Vector3 [] deltaTangents = new Vector3 [size];
-                sourceMesh.GetBlendShapeFrameVertices (i, frameIndex, deltaVertices, deltaNormals, deltaTangents);
+
+        Dictionary<string, int[]> blendShapeToIndexOne = new Dictionary<string, int[]>();
+        List<string> blendShapeList = new List<string>();
+        for (subi = 0; subi < siblingMeshes.Count; subi++) {
+            for (int i = 0; i < siblingMeshes[subi].blendShapeCount; i++) {
+                var blendShapeName = siblingMeshes[subi].GetBlendShapeName (i);
+                if (!blendShapeToIndexOne.ContainsKey(blendShapeName)) {
+                    blendShapeToIndexOne[blendShapeName] = new int[siblingMeshes.Count];
+                    blendShapeList.Add(blendShapeName);
+                }
+                blendShapeToIndexOne[blendShapeName][subi] = i + 1;
+            }
+        }
+
+        for (int outerbsindex = 0; outerbsindex < blendShapeList.Count; outerbsindex++) {
+            string blendShapeName = blendShapeList[outerbsindex];
+            int totalFrameCount = 0;
+            for (subi = 0; subi < siblingMeshes.Count; subi++) {
+                int blendIndex = blendShapeToIndexOne[blendShapeName][subi] - 1;
+                if (blendIndex < 0) {
+                    continue;
+                }
+                totalFrameCount = Math.Max(totalFrameCount, siblingMeshes[subi].GetBlendShapeFrameCount (blendIndex));
+            }
+            for (int frameIndex = 0; frameIndex < totalFrameCount; frameIndex++) {
                 Vector3 [] newDeltaVertices = new Vector3 [finalVertices.Count];
                 Vector3 [] newDeltaNormals = new Vector3 [finalVertices.Count];
                 Vector3 [] newDeltaTangents = new Vector3 [finalVertices.Count];
-                Array.Copy (deltaVertices, newDeltaVertices, size);
-                Array.Copy (deltaNormals, newDeltaNormals, size);
-                Array.Copy (deltaTangents, newDeltaTangents, size);
+                float weight = 100.0f;
+                for (subi = 0; subi < siblingMeshes.Count; subi++) {
+                    int blendIndex = blendShapeToIndexOne[blendShapeName][subi] - 1;
+                    if (blendIndex < 0) {
+                        continue;
+                    }
+                    int thisFrameCount = siblingMeshes[subi].GetBlendShapeFrameCount (blendIndex);
+                    if (frameIndex >= thisFrameCount) {
+                        continue;
+                    }
+                    Vector3 [] deltaVertices = new Vector3 [meshesVertexCount[subi]];
+                    Vector3 [] deltaNormals = new Vector3 [meshesVertexCount[subi]];
+                    Vector3 [] deltaTangents = new Vector3 [meshesVertexCount[subi]];
+                    weight = Math.Min(weight, siblingMeshes[subi].GetBlendShapeFrameWeight (blendIndex, frameIndex));
+                    siblingMeshes[subi].GetBlendShapeFrameVertices (blendIndex, frameIndex, deltaVertices, deltaNormals, deltaTangents);
+                    Array.Copy (deltaVertices, 0, newDeltaVertices, meshesVertexOffset[subi], meshesVertexCount[subi]);
+                    Array.Copy (deltaNormals, 0, newDeltaNormals, meshesVertexOffset[subi], meshesVertexCount[subi]);
+                    Array.Copy (deltaTangents, 0, newDeltaTangents, meshesVertexOffset[subi], meshesVertexCount[subi]);
+                    // FIXME: We do not adjust blendshapes based on relative bindpose matrices.
+                    // NOTE(Lyuma): Do we actually need to do this? I think it should just work
+                }
                 newMesh.AddBlendShapeFrame (blendShapeName, weight, newDeltaVertices, newDeltaNormals, newDeltaTangents);
-                // FIXME: Merge in blendshapes from sibling meshes.
-                // FIXME: We do not adjust blendshapes based on relative bindpose matrices.
             }
         }
         newMesh.name = sourceMesh.name + "_merged";
