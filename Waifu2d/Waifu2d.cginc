@@ -131,6 +131,9 @@ float4 waifu_projectVertex2(float4 vertexWorldPos, float4 origPos) {
 float4 waifu_projectVertexWorldPos(float4 inVertex) {
 	return waifu_projectVertex2(waifu_computeVertexWorldPos(inVertex), inVertex);
 }
+float4 waifu_projectVertexWorldPos(float3 inVertex) {
+	return waifu_projectVertex2(waifu_computeVertexWorldPos(float4(inVertex, 1)), float4(inVertex, 1));
+}
 
 
 #ifdef LYUMA2D_HOTPATCH
