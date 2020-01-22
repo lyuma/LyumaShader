@@ -40,7 +40,12 @@ public class GenerateSkinnedTri : EditorWindow {
         win.Show ();
     }
 
+    Vector2 scrollPos = new Vector2(0,0);
+
     void OnGUI() {
+      try {
+        GUILayout.BeginVertical();
+        scrollPos = GUILayout.BeginScrollView(scrollPos,false,false,GUILayout.ExpandWidth(true),GUILayout.ExpandHeight(true));
         armatureObj = (Animator)EditorGUILayout.ObjectField (new GUIContent ("Avatar Animator", "Avatar Animator object"), armatureObj, typeof (Animator), true);
         if (armatureObj != null && armatureObj.isHuman) {
             headDefaultBone = armatureObj.GetBoneTransform (HumanBodyBones.Head);
@@ -115,6 +120,10 @@ public class GenerateSkinnedTri : EditorWindow {
             doGenerate (true);
             //EditorUtility.DisplayDialog ("GenerateSkinnedTris", "Would start", "OK", "");
         }
+       } finally {
+        GUILayout.EndScrollView ();
+        GUILayout.EndVertical();
+       }
     }
 
     private void doGenerate(bool bindPose) {        

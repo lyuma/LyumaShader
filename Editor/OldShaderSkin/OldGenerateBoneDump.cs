@@ -12,7 +12,7 @@ using UnityEditor;
 //using HierarchyDict = System.Collections.Generic.Dictionary<string, UnityEngine.Transform>;
 //using BoneTransformDict = System.Collections.Generic.Dictionary<string, Tuple<UnityEngine.Transform, string>>;
 
-public class GenerateSoftSkinnedMesh : MonoBehaviour {
+public class OldGenerateSoftSkinnedMesh : MonoBehaviour {
     public static string d (Vector2 vector)
     {
         return "<" + vector.x + "," + vector.y + ">";
@@ -49,7 +49,7 @@ public class GenerateSoftSkinnedMesh : MonoBehaviour {
         return outb;
     }
     //[MenuItem("GameObject/Create Soft Skinned")]
-    [MenuItem ("CONTEXT/SkinnedMeshRenderer/Generate soft skinned")]
+    [MenuItem ("CONTEXT/SkinnedMeshRenderer/OldSkin::Generate bone dump")]
     public static void GenerateSoftSkinned_ (MenuCommand command)
     {
         int USE_BLEND_SHAPES = 1; // 1 == same material; 2 = separate materials.

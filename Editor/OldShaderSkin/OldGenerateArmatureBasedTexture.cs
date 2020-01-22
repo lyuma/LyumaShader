@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 
-public class GenerateArmatureBasedTexture : EditorWindow {
+public class OldGenerateArmatureBasedTexture : EditorWindow {
     /*
     [MenuItem ("Lyuma/GenerateTexture")]
     static void Init ()
@@ -70,7 +70,7 @@ public class GenerateArmatureBasedTexture : EditorWindow {
         return ret;
     }
 
-    [MenuItem ("Lyuma/GenerateArmatureBasedTexture")]
+    [MenuItem ("Lyuma/OldSkin::GenerateArmatureBasedTexture")]
     static void Init ()
     {
         GenerateArmatureBasedTexture win = (GenerateArmatureBasedTexture)GetWindow (typeof (GenerateArmatureBasedTexture));
@@ -328,11 +328,5 @@ public class GenerateArmatureBasedTexture : EditorWindow {
         string outPath = pathToGenerated + "/ZZmeshtex_" + outFileName + "_" + DateTime.UtcNow.ToString ("s").Replace (':', '_') + ".asset";
         AssetDatabase.CreateAsset (outTexture, outPath);
         EditorGUIUtility.PingObject (outTexture);
-    }
-
-    [MenuItem ("Lyuma/PlayerSettings")]
-    static void OpenPlayerSettings ()
-    {
-        EditorApplication.ExecuteMenuItem ("Edit/Project Settings/Player");
     }
 }

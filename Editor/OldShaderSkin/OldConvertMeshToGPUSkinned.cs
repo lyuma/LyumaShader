@@ -13,7 +13,7 @@ using UnityEditor;
 //using HierarchyDict = System.Collections.Generic.Dictionary<string, UnityEngine.Transform>;
 //using BoneTransformDict = System.Collections.Generic.Dictionary<string, Tuple<UnityEngine.Transform, string>>;
 
-namespace utils {
+namespace Oldutils {
     public class MeshCombiner {
         #region Operations
         //! Combine mesh.
@@ -253,7 +253,7 @@ namespace utils {
 }
 
 //#if DO_STUFF_CONVERT_MESH_TO
-public class ConvertMeshToGPUSkinned : MonoBehaviour {
+public class OldConvertMeshToGPUSkinned : MonoBehaviour {
     public static string d(Vector2 vector) {
         return "<" + vector.x + "," + vector.y + ">";
     }
@@ -310,7 +310,7 @@ public class ConvertMeshToGPUSkinned : MonoBehaviour {
     }
 
     //[MenuItem("GameObject/Create Mesh")]
-    [MenuItem("CONTEXT/SkinnedMeshRenderer/Convert mesh to GPU skinned")]
+    [MenuItem("CONTEXT/SkinnedMeshRenderer/OldSkin::Convert mesh to GPU skinned")]
     public static void ConvertMeshToGPUSkinned_(MenuCommand command)
     {
         SkinnedMeshRenderer renderer = command.context as SkinnedMeshRenderer;
