@@ -26,8 +26,9 @@ public class LyumaMeshTools : EditorWindow {
     [MenuItem ("CONTEXT/MeshFilter/Vertex position to UV2 : LMT", false, 131)]
     [MenuItem ("CONTEXT/MeshRenderer/Vertex position to UV2 : LMT", false, 131)]
     [MenuItem ("CONTEXT/SkinnedMeshRenderer/Vertex position to UV2 : LMT", false, 131)]
-    public static void RunBakeObjectPos (MenuCommand command)
+    public static void RunBakeWorldPos (MenuCommand command)
     {
+        Mesh sourcePositionMesh;
         Mesh sourceMesh;
         SkinnedMeshRenderer smr = null;
         MeshRenderer mr = null;
@@ -35,15 +36,20 @@ public class LyumaMeshTools : EditorWindow {
         if (command.context is SkinnedMeshRenderer) {
             smr = command.context as SkinnedMeshRenderer;
             sourceMesh = smr.sharedMesh;
+            sourcePositionMesh = new Mesh();
+            smr.BakeMesh(sourcePositionMesh);
         } else if (command.context is MeshRenderer) {
             mr = command.context as MeshRenderer;
             mf = mr.transform.GetComponent<MeshFilter> ();
             sourceMesh = mf.sharedMesh;
+            sourcePositionMesh = sourceMesh;
         } else if (command.context is MeshFilter) {
             mf = command.context as MeshFilter;
             sourceMesh = mf.sharedMesh;
+            sourcePositionMesh = sourceMesh;
 		} else if (command.context is Mesh) {
 			sourceMesh = command.context as Mesh;
+            sourcePositionMesh = sourceMesh;
         } else {
             EditorUtility.DisplayDialog ("MergeUVs", "Unknkown context type " + command.context.GetType ().FullName, "OK", "");
             throw new NotSupportedException ("Unknkown context type " + command.context.GetType ().FullName);
@@ -56,6 +62,7 @@ public class LyumaMeshTools : EditorWindow {
         sourceMesh.GetUVs (0, srcUV);
         sourceMesh.GetUVs (2, srcUV3);
         sourceMesh.GetUVs (3, srcUV4);
+        Vector3 [] srcPosVertices = sourcePositionMesh.vertices;
         Vector3 [] srcVertices = sourceMesh.vertices;
         Color [] srcColors = sourceMesh.colors; // FIXME: Should use colors?
         Vector3 [] srcNormals = sourceMesh.normals;
@@ -64,7 +71,7 @@ public class LyumaMeshTools : EditorWindow {
         BoneWeight [] srcBoneWeights = sourceMesh.boneWeights;
         var newUV2 = new Vector4[size];
         for (int i = 0; i < size; i++) {
-            newUV2 [i] = new Vector4 (srcVertices[i].x, srcVertices[i].y, srcVertices[i].z, 0);
+            newUV2 [i] = new Vector4 (srcPosVertices[i].x, srcPosVertices[i].y, srcPosVertices[i].z, 0);
         }
         newMesh.vertices = srcVertices;
         if (srcNormals != null && srcNormals.Length > 0) {
@@ -568,6 +575,7 @@ public class LyumaMeshTools : EditorWindow {
         parentName += sourceMesh.name;
         Mesh newMesh = new Mesh ();
         int size = sourceMesh.vertices.Length;
+        newMesh.indexFormat = sourceMesh.indexFormat == UnityEngine.Rendering.IndexFormat.UInt32 || size > 65535 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
         List<Vector4> srcUV = new List<Vector4> (); // will discard zw
         List<Vector4> srcUV2 = new List<Vector4> (); // will discard zw
         List<Vector4> srcUV3 = new List<Vector4> ();
@@ -612,12 +620,36 @@ public class LyumaMeshTools : EditorWindow {
         for (int i = 0; i < newMesh.subMeshCount; i++) {
             List<int> curIndices = new List<int> ();
             MeshTopology topo = sourceMesh.GetTopology(materialToSubmesh[finalMaterials[i]][0]);
+            int minidx = -1;
             foreach (int thisIndex in materialToSubmesh [finalMaterials[i]]) {
                 if (sourceMesh.GetTopology (thisIndex) == topo) {
-                    curIndices.AddRange (sourceMesh.GetIndices (thisIndex));
+                    int[] newind = sourceMesh.GetIndices (thisIndex);
+                    /*
+                    uint offset = sourceMesh.GetBaseVertex(thisIndex);
+                    for (int idx = 0; idx < newind.Length; idx++) {
+                        newind[idx] += (int)offset;
+                        if (newind[idx] < minidx || minidx == -1) {
+                            minidx = newind[idx];
+                        }
+                    }
+                    */
+                    curIndices.AddRange (newind);
                 }
             }
-            newMesh.SetIndices (curIndices.ToArray<int>(), topo, i);
+            /*
+            int curl = curIndices.Count;
+            int maxidx = 0;
+            for (int idx = 0; idx < curl; idx++) {
+                curIndices[idx] -= minidx;
+                if (curIndices[idx] > maxidx) {
+                    maxidx = curIndices[idx];
+                }
+            }
+            if (maxidx > 32767 && newMesh.indexFormat != UnityEngine.Rendering.IndexFormat.UInt32) {
+                GetIndices = UnityEngine.Rendering.IndexFormat.UInt32;
+            }
+            */
+            newMesh.SetIndices (curIndices.ToArray<int>(), topo, i, true);
         }
         newMesh.bounds = sourceMesh.bounds;
         if (srcBindposes != null && srcBindposes.Length > 0) {
@@ -796,9 +828,9 @@ public class LyumaMeshTools : EditorWindow {
                     bw.weight1 = 1.0f;
                 } else {
                     bw.boneIndex0 = 1;
-                    bw.weight0 = 0.99999f;
+                    bw.weight0 = 1.0f; // 0.99999f
                     bw.boneIndex1 = 0;
-                    bw.weight1 = 0.00001f;
+                    bw.weight1 = 0.00f;
                 }
                 newBoneWeights [i] = bw;
             }
@@ -952,11 +984,6 @@ public class LyumaMeshTools : EditorWindow {
         if (srcUV4.Count > 0) {
             newMesh.SetUVs (3, srcUV4);
         }
-        newMesh.subMeshCount = sourceMesh.subMeshCount;
-        for (int i = 0; i < sourceMesh.subMeshCount; i++) {
-            var curIndices = sourceMesh.GetIndices (i);
-            newMesh.SetIndices (curIndices, sourceMesh.GetTopology (i), i);
-        }
         newMesh.bounds = sourceMesh.bounds;
         if (srcBindposes != null && srcBindposes.Length > 0) {
             newMesh.bindposes = sourceMesh.bindposes;
@@ -1020,6 +1047,11 @@ public class LyumaMeshTools : EditorWindow {
                 sourceMesh.GetBlendShapeFrameVertices (entry.Value.x, entry.Value.y, deltaVertices, deltaNormals, deltaTangents);
                 newMesh.AddBlendShapeFrame (blendShapeName, weight, deltaVertices, deltaNormals, deltaTangents);
             }
+        }
+        newMesh.subMeshCount = sourceMesh.subMeshCount;
+        for (int i = 0; i < sourceMesh.subMeshCount; i++) {
+            var curIndices = sourceMesh.GetIndices (i);
+            newMesh.SetIndices (curIndices, sourceMesh.GetTopology (i), i);
         }
         newMesh.name = sourceMesh.name + "_blendmerge";
         Mesh meshAfterUpdate = newMesh;
@@ -1263,7 +1295,11 @@ public class LyumaMeshTools : EditorWindow {
                 //}
                 int i = 0;
                 foreach (Transform t in s.bones) {
-                    if (!boneTransToIndex.ContainsKey(t)) {
+                    if (t == null && !boneTransToIndex.ContainsKey(smr.rootBone)) {
+                        boneTransToIndex.Add (smr.rootBone, boneTransforms.Count);
+                        bindposes.Add (s.sharedMesh.bindposes [i]);
+                        boneTransforms.Add (smr.rootBone);
+                    } else if (t != null && !boneTransToIndex.ContainsKey(t)) {
                         boneTransToIndex.Add (t, boneTransforms.Count);
                         bindposes.Add (s.sharedMesh.bindposes [i]);
                         boneTransforms.Add (t);
@@ -1409,6 +1445,10 @@ public class LyumaMeshTools : EditorWindow {
                 Transform [] thisbones = renderers [subi].bones;
                 int[] indexMapping = new int [thisbones.Length];
                 for (int i = 0; i < thisbones.Length; i++) {
+                    if (thisbones[i] == null) {
+                        indexMapping [i] = boneTransToIndex [smr.rootBone];
+                        continue;
+                    }
                     indexMapping [i] = boneTransToIndex [thisbones [i]];
                 }
                 for (int i = 0; i < srcBoneWeights.Count; i++) {
