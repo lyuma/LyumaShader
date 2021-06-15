@@ -13,9 +13,7 @@ Shader "LyumaShader/StandardSimple_2d"
         _2d_coef ("Twodimensionalness", Range(0, 1)) = 0.99
         _facing_coef ("Face in Profile", Range (-1, 1)) = 0.0
         _lock2daxis_coef ("Lock 2d Axis", Range (0, 1)) = 1.0
-        _local3d_coef ("See self in 3d", Range (0, 1)) = 1.0
         _zcorrect_coef ("Squash Z (good=.975; 0=3d; 1=z-fight)", Float) = 0.975
-        _ztweak_coef ("Tweak z clip", Range (-1, 1)) = 0.0
 
 		_Color("Color", Color) = (1,1,1,1)
 		_MainTex("Albedo", 2D) = "white" {}
@@ -63,7 +61,7 @@ Shader "LyumaShader/StandardSimple_2d"
 	CGINCLUDE
 //Waifu2d Generated
 #define LYUMA2D_HOTPATCH
-#include "../../LyumaShader/Waifu2d/Waifu2d.cginc"
+#include "Waifu2d.cginc"
 		#define UNITY_SETUP_BRDF_INPUT MetallicSetup
 	ENDCG
 

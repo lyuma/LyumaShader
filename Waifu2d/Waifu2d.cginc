@@ -11,9 +11,7 @@
 uniform float _2d_coef;
 uniform float _facing_coef;
 uniform float _lock2daxis_coef;
-uniform float _ztweak_coef;
 uniform float _zcorrect_coef;
-uniform float _local3d_coef;
 #endif
 
 float nonzeroify(float inp) {
@@ -37,22 +35,19 @@ static float3 cameraPosInObjectSpace = mul(unity_WorldToObject, float4(realCamer
 static float3 targetCameraPosFacingVec = float3(sin(_facing_coef * 1.570796), 0, cos(_facing_coef * 1.570796));
 static float3 targetCameraPos = mul(unity_ObjectToWorld, float4(targetCameraPosFacingVec * sign(dot(cameraPosInObjectSpace,targetCameraPosFacingVec)) * length(cameraPosInObjectSpace.xyz), 1)).xyz;
 // _plock_coef
-static float3 cameraPos = lerp(realCameraPos, targetCameraPos, _lock2daxis_coef);
 
+static float3 cameraPos = lerp(realCameraPos, targetCameraPos, min(_2d_coef * 4, 1) * _lock2daxis_coef);
 
-static float3 cameraToObj = (cameraPos - objectPos) * float3(1., 0., 1.); // + float3(0., 0., 0.0001);
-//static float3 objectPos = objectPos + 0.4 * (1. - _lock2daxis_coef) * normalize(cameraToObj);
+static float3 cameraToObj = (cameraPos - objectPos); // + float3(0., 0., 0.0001);
 //static float3 cameraToObj = float3(cameraToObjX.x, 0., nonzeroify(cameraToObjX.z));
 static float2 cameraToObj2D = normalize(cameraToObj.xz); // FIXME: was normalize(cameraToObj).xz WHY?
 
 #if defined(VR_ONLY_2D) && !defined(USING_STEREO_MATRICES)
 static float desired_waifu_coef = 0.0;
 #else
-static float desired_waifu_coef = min(1.0, max(0.0, _2d_coef));
+static float desired_waifu_coef = min(0.995, max(0.0, _2d_coef));
 #endif
-// Detect looking away from avatar.
-static float looking_away = min(desired_waifu_coef, max(0.1 * length(cameraToObj), 1.3 * (dot(approxEyeDir.xz, cameraToObj2D) + 1)));
-static float waifu_coef = lerp(desired_waifu_coef, looking_away, _local3d_coef);
+static float waifu_coef = desired_waifu_coef;
 
 static float3 yAxis = float3(0,1,0);
 static float3 xAxis = float3(cameraToObj2D.y,0,cameraToObj2D.x);
@@ -84,15 +79,14 @@ static float angleCorr = discreteAngle - approxAngle;
 
 static float3 approxEyeDirInObjectSpace = mul(unity_WorldToObject, float4(approxEyeDir, 0)).xyz;
 static float3 targetApproxEyeDir = mul(unity_ObjectToWorld, float4(0, 0, length(approxEyeDirInObjectSpace.xyz), 0)).xyz;
-static float3 approxCameraDir = float4((cameraPos.xz - objectPos.xz), 0., 1.).xzyw;
+static float3 approxCameraDir = float4((cameraPos.xz - objectPos.xz), 0., 1.).xzy;
 // was approxEyeDir not approxCameraDir but this changes rotation as you rotate...
 static float3 facingApproxEyeDir = normalize(lerp(approxCameraDir, targetApproxEyeDir, min(_lock2daxis_coef, _2d_coef)));
 
 static float2 eyeFacing = lerp(float2(1,0), facingApproxEyeDir.xz, _facing_coef);
 
-
 float4 waifu_computeWorldFlatWorldPos(float4 objToWorld) {
-    float3 oPos = UnityWorldToViewPos(objToWorld);
+    float3 oPos = UnityWorldToViewPos(objToWorld.xyz).xyz;
     float4 unprojectedPos = mul(myInvVMat, objToWorld);
     float4 semiProjectedPos = float4(unprojectedPos.xyz, 1.);
     semiProjectedPos.z = 0.;
@@ -115,11 +109,12 @@ float4 waifu_computeVertexLocalPos(float4 inVertex) {
 
 float4 waifu_projectVertex2(float4 vertexWorldPos, float4 origPos) {
     float4 oPos = UnityObjectToClipPos(origPos);
+    if (waifu_coef <= 1.0e-6) {
+        return oPos;
+    }
     float4 newViewPos = mul(UNITY_MATRIX_V, vertexWorldPos);
     float4 newPos = mul(UNITY_MATRIX_P, newViewPos);
-    newViewPos.z -= _ztweak_coef;
-    float newPosTweakZ = mul(UNITY_MATRIX_P, newViewPos).z;
-    newPos.z = lerp(sign(oPos.w * oPos.z * newPos.w) * max(0.00001, abs(oPos.z)) * max(0.00001, abs(newPos.w)) / max(0.00001, abs(oPos.w)), newPosTweakZ, _zcorrect_coef);
+    newPos.z = lerp(sign(oPos.w * oPos.z * newPos.w) * max(0.00001, abs(oPos.z)) * max(0.00001, abs(newPos.w)) / max(0.00001, abs(oPos.w)), newPos.z, _zcorrect_coef);
     return newPos;
     // END CRAZY PER VERTEX
 }
@@ -131,15 +126,30 @@ float4 waifu_projectVertex2(float4 vertexWorldPos, float4 origPos) {
 float4 waifu_projectVertexWorldPos(float4 inVertex) {
 	return waifu_projectVertex2(waifu_computeVertexWorldPos(inVertex), inVertex);
 }
+
 float4 waifu_projectVertexWorldPos(float3 inVertex) {
 	return waifu_projectVertex2(waifu_computeVertexWorldPos(float4(inVertex, 1)), float4(inVertex, 1));
 }
 
+float4 waifu_projectVertexFromWorldPos(float3 inVertex) {
+    inVertex = mul(unity_WorldToObject, float4(inVertex, 1)).xyz;
+	return waifu_projectVertex2(waifu_computeVertexWorldPos(float4(inVertex, 1)), float4(inVertex, 1));
+}
 
 #ifdef LYUMA2D_HOTPATCH
 #define UnityObjectToClipPos waifu_projectVertexWorldPos
+#define UnityWorldToClipPos waifu_projectVertexFromWorldPos
 #undef TRANSFER_SHADOW_CASTER_NOPOS_LEGACY
 #undef TRANSFER_SHADOW_CASTER_NOPOS
+
+float4 waifu_ClipSpaceShadowCasterPos(float4 v, float3 n) {
+    return UnityClipSpaceShadowCasterPos(waifu_computeVertexLocalPos(v), n);
+}
+float4 waifu_ClipSpaceShadowCasterPos(float3 v, float3 n) {
+    return UnityClipSpaceShadowCasterPos(waifu_computeVertexLocalPos(float4(v, 1.0)), n);
+}
+#define UnityClipSpaceShadowCasterPos waifu_ClipSpaceShadowCasterPos
+
 #if defined(SHADOWS_CUBE) && !defined(SHADOWS_CUBE_IN_DEPTH_TEX)
     #define TRANSFER_SHADOW_CASTER_NOPOS_LEGACY(o,opos) float4 actualWorldPos = waifu_computeVertexWorldPos(v.vertex); o.vec = actualWorldPos.xyz - _LightPositionRange.xyz; opos = UnityWorldToClipPos(actualWorldPos);
     #define TRANSFER_SHADOW_CASTER_NOPOS(o,opos) TRANSFER_SHADOW_CASTER_NOPOS_LEGACY(o,opos)
@@ -148,7 +158,7 @@ float4 waifu_projectVertexWorldPos(float3 inVertex) {
         opos = UnityObjectToClipPos(waifu_computeVertexLocalPos(v.vertex)); \
         opos = UnityApplyLinearShadowBias(opos);
     #define TRANSFER_SHADOW_CASTER_NOPOS(o,opos) \
-        opos = UnityClipSpaceShadowCasterPos(waifu_computeVertexLocalPos(v.vertex), v.normal); \
+        opos = waifu_ClipSpaceShadowCasterPos(v.vertex, v.normal); \
         opos = UnityApplyLinearShadowBias(opos);
 #endif
 #endif

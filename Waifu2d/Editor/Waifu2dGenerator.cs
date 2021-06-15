@@ -5,6 +5,9 @@ using System;
 
 namespace LyumaShader {
     public class Waifu2dGenerator : ScriptableObject {
+        // Use a #include instead of pasting in code.
+        const bool USE_INCLUDE = false;
+
         //[MenuItem ("Tools/Lyuma Waifu2d")]
         //MenuItem("GameObject/Create Mesh")
         [MenuItem ("CONTEXT/Material/Make 2d (Lyuma Waifu2d)")]
@@ -13,6 +16,7 @@ namespace LyumaShader {
             Material m = command.context as Material;
             Shader newShader = Waifu2d (m.shader, false);
             if (newShader != null) {
+                Undo.RecordObject(m, "Waifu2d: Switch Shader to 2d");
                 m.shader = newShader;
             }
         }
@@ -25,24 +29,43 @@ namespace LyumaShader {
             EditorGUIUtility.PingObject (newS);
         }
 
-        [MenuItem ("CONTEXT/Material/Make 2d VR only (Lyuma Waifu2d)")]
-        static void WaifuVR2dMaterial (MenuCommand command)
+        [MenuItem ("CONTEXT/Material/Revert to 3d (Lyuma Waifu2d)")]
+        static void WaifuRevert2dMaterial (MenuCommand command)
         {
             Material m = command.context as Material;
-            Shader newShader = Waifu2d (m.shader, true);
-            if (newShader != null) {
-                m.shader = newShader;
+            string path = AssetDatabase.GetAssetPath (m.shader);
+            if (path.StartsWith ("Resources/unity_builtin_extra", StringComparison.CurrentCulture)) {
+                return;
+            }
+            string shaderName = m.shader.name;
+            string [] shaderData = File.ReadAllLines (path);
+            string origPath = "";
+            foreach (string xline in shaderData) {
+                string line = xline;
+                if (line.IndexOf("Original source file:") != -1 && origPath.Length == 0) {
+                    origPath = line.Substring(line.IndexOf(":") + 1).Trim();
+                }
+                if (line.IndexOf ("Waifu2d Generated", StringComparison.CurrentCulture) != -1) {
+                    if (origPath.Length == 0) {
+                        origPath = path.Replace ("_vr2d.shader", ".shader").Replace ("_2d.shader", ".shader");
+                    }
+                    String origShaderName = shaderName.Replace ("_vr2d", "").Replace("_2d", "");
+                    Shader origShader = AssetDatabase.LoadAssetAtPath<Shader>(origPath);
+                    if (origShader == null) {
+                        origShader = Shader.Find(origShaderName);
+                    }
+                    if (origShader == null) {
+                        EditorUtility.DisplayDialog ("Waifu2d", "Cannot find the original shader " + origShaderName + " at " + origPath, "OK", "");
+                    } else {
+                        Undo.RecordObject(m, "Waifu2d: Revert Shader to 3d");
+                        Debug.Log("original shader " + origShaderName + " at " + origPath, origShader);
+                        m.shader = origShader;
+                    }
+                    break;
+                }
             }
         }
 
-        [MenuItem ("CONTEXT/Shader/Generate 2d VR only waifu (Lyuma Waifu2d)")]
-        static void WaifuVR2dShader (MenuCommand command)
-        {
-            Shader s = command.context as Shader;
-            Shader newS = Waifu2d (s, true);
-            EditorGUIUtility.PingObject (newS);
-        }
-       
         static Shader Waifu2d (Shader s, bool vr2d)
         {
             string shaderName = s.name;
@@ -77,6 +100,8 @@ namespace LyumaShader {
             int cgIncludeSkip = -1;
             int editShaderNameLineNum = -1;
             int editShaderNameSkip = -1;
+            bool isOpenQuote = false;
+            bool CisOpenQuote = false;
             foreach (string xline in shaderData) {
                 string line = xline;
                 if (line.IndexOf ("Waifu2d Generated", StringComparison.CurrentCulture) != -1) {
@@ -107,12 +132,31 @@ namespace LyumaShader {
                             break;
                         }
                     }
+                    int openQuote = line.IndexOf ("\"", lineSkip, StringComparison.CurrentCulture);
+                    if (CisOpenQuote) {
+                        if (openQuote == -1) {
+                            //Debug.Log("C-Open quote ignore " + lineSkip);
+                            break;
+                        } else {
+                            lineSkip = openQuote + 1;
+                            CisOpenQuote = false;
+                        }
+                        //Debug.Log("C-Open quote end " + lineSkip);
+                        continue;
+                    }
                     commentIdx = line.IndexOf ("//", lineSkip, StringComparison.CurrentCulture);
+                    int commentIdx2 = line.IndexOf ("/*", lineSkip, StringComparison.CurrentCulture);
+                    if (openQuote != -1 && (openQuote < commentIdx || commentIdx == -1) && (openQuote < commentIdx2 || commentIdx2 == -1)) {
+                        CisOpenQuote = true;
+                        lineSkip = openQuote + 1;
+                        //Debug.Log("C-Open quote start " + lineSkip);
+                        continue;
+                    }
                     if (commentIdx != -1) {
                         line = line.Substring (0, commentIdx);
                         break;
                     }
-                    commentIdx = line.IndexOf ("/*", lineSkip, StringComparison.CurrentCulture);
+                    commentIdx = commentIdx2;
                     if (commentIdx != -1) {
                         int endCommentIdx = line.IndexOf ("*/", lineSkip, StringComparison.CurrentCulture);
                         if (endCommentIdx != -1) {
@@ -127,6 +171,7 @@ namespace LyumaShader {
                         break;
                     }
                 }
+                lineSkip = 0;
                 bool fallThrough = true;
                 while (fallThrough) {
                     //Debug.Log ("Looking for state " + state + " on line " + lineNum);
@@ -158,9 +203,27 @@ namespace LyumaShader {
                     case 2: {
                             // Find end of Properties block
                             while (lineSkip < line.Length) {
+                                int openQuote = line.IndexOf ("\"", lineSkip, StringComparison.CurrentCulture);
+                                if (isOpenQuote) {
+                                    if (openQuote == -1) {
+                                        //Debug.Log("Open quote ignore " + lineSkip);
+                                        break;
+                                    } else {
+                                        lineSkip = openQuote + 1;
+                                        isOpenQuote = false;
+                                    }
+                                    //Debug.Log("Open quote end " + lineSkip);
+                                    continue;
+                                }
                                 int openBrace = line.IndexOf ("{", lineSkip, StringComparison.CurrentCulture);
                                 int closeBrace = line.IndexOf ("}", lineSkip, StringComparison.CurrentCulture);
-                                //Debug.Log ("Looking for braces state " + state + " on line " + lineNum + "/" + lineSkip + " {}" + braceLevel + " open:" + openBrace + "/ close:" + closeBrace);
+                                if (openQuote != -1 && (openQuote < openBrace || openBrace == -1) && (openQuote < closeBrace || closeBrace == -1)) {
+                                    isOpenQuote = true;
+                                    lineSkip = openQuote + 1;
+                                    //Debug.Log("Open quote start " + lineSkip);
+                                    continue;
+                                }
+                                //Debug.Log ("Looking for braces state " + state + " on line " + lineNum + "/" + lineSkip + " {}" + braceLevel + " open:" + openBrace + "/ close:" + closeBrace + "/ quote:" + openQuote);
                                 if (closeBrace != -1 && (openBrace > closeBrace || openBrace == -1)) {
                                     braceLevel--;
                                     if (braceLevel == 0) {
@@ -239,26 +302,30 @@ namespace LyumaShader {
                 return null;
             }
 
-            string [] shader2dassets = AssetDatabase.FindAssets ("Waifu2d");
+            string [] shader2dassets = AssetDatabase.FindAssets ("Waifu2d.cginc");
             string includePath = "LyumaShader/Waifu2d/Waifu2d.cginc";
             foreach (string guid in shader2dassets) {
                 Debug.Log ("testI: " + AssetDatabase.GUIDToAssetPath (guid));
                 includePath = AssetDatabase.GUIDToAssetPath (guid);
                 if (!includePath.Contains ("Waifu2d.cginc")) {
-                    includePath += "/Waifu2d.cginc";
+                    continue;
                 }
                 if (!includePath.StartsWith ("Assets/", StringComparison.CurrentCulture)) {
                     EditorUtility.DisplayDialog ("Waifu2d", "This script at path " + includePath + " must be in Assets!", "OK", "");
                     return null;
                 }
                 includePath = includePath.Substring (7);
+                break;
             }
+            Debug.Log("Including code from " + includePath);
+            string cgincCode = File.ReadAllText("Assets/" + includePath);
             int numSlashes = 0;
             if (!path.StartsWith ("Assets/", StringComparison.CurrentCulture)) {
                 EditorUtility.DisplayDialog ("Waifu2d", "Shader " + shaderName + " at path " + path + " must be in Assets!", "OK", "");
                 return null;
             }
             string includePrefix = "";
+            Debug.Log("path is " + path);
             foreach (char c in path.Substring (7)) {
                 if (c == '/') {
                     numSlashes++;
@@ -272,7 +339,11 @@ namespace LyumaShader {
                 if (vr2d) {
                     cgIncludeAdd += "#define VR_ONLY_2D 1\n";
                 }
-                cgIncludeAdd += "#include \"" + includePath + "\"\n";
+                if (USE_INCLUDE) {
+                    cgIncludeAdd += "#include \"" + includePath + "\"\n";
+                } else {
+                    cgIncludeAdd += cgincCode.Replace("\r\n", "\n");
+                }
                 shaderData [cgIncludeLineNum] = cgIncludeAdd + cgIncludeLine;
             } else {
                 string cgIncludeLine = shaderData [cgIncludeLineNum];
@@ -280,19 +351,22 @@ namespace LyumaShader {
                 if (vr2d) {
                     cgIncludeAdd += "#define VR_ONLY_2D 1\n";
                 }
-                cgIncludeAdd += "# include \"" + includePath + "\"\nENDCG\n";
+                if (USE_INCLUDE) {
+                    cgIncludeAdd += "# include \"" + includePath + "\"\n";
+                } else {
+                    cgIncludeAdd += cgincCode.Replace("\r\n", "\n");
+                }
+                cgIncludeAdd += "ENDCG\n";
                 shaderData [cgIncludeLineNum] = cgIncludeLine.Substring (0, cgIncludeSkip) + cgIncludeAdd + cgIncludeLine.Substring (cgIncludeSkip);
             }
 
             string epLine = shaderData [beginPropertiesLineNum];
             string propertiesAdd = "\n" +
-                "        // Waifu2d Properties:\n" +
+                "        // Waifu2d Properties::\n" +
                 "        _2d_coef (\"Twodimensionalness\", Range(0, 1)) = 0.99\n" +
                 "        _facing_coef (\"Face in Profile\", Range (-1, 1)) = 0.0\n" +
                 "        _lock2daxis_coef (\"Lock 2d Axis\", Range (0, 1)) = " + (vr2d ? "0.0" : "1.0") + "\n" +
-                "        _local3d_coef (\"See self in 3d\", Range (0, 1)) = 1.0\n" +
-                "        _zcorrect_coef (\"Squash Z (good=.975; 0=3d; 1=z-fight)\", Float) = " + (vr2d ? "0.0" : "0.975") + "\n" +
-                "        _ztweak_coef (\"Tweak z clip\", Range (-1, 1)) = 0.0\n";
+                "        _zcorrect_coef (\"Squash Z (good=.975; 0=3d; 1=z-fight)\", Float) = " + (vr2d ? "0.0" : "0.975") + "\n";
             epLine = epLine.Substring (0, beginPropertiesSkip) + propertiesAdd + epLine.Substring (beginPropertiesSkip);
             shaderData [beginPropertiesLineNum] = epLine;
 
@@ -310,6 +384,7 @@ namespace LyumaShader {
             Debug.Log ("Shader name" + shaderName + shaderSuffix);
             Debug.Log ("Original path " + path + " name " + shaderName);
             StreamWriter writer = new StreamWriter (dest, false);
+            writer.NewLine = "\n";
             writer.WriteLine ("// AUTOGENERATED by LyumaShader Waifu2DGenerator at " + DateTime.UtcNow.ToString ("s") + "!");
             writer.WriteLine ("// Original source file: " + path);
             writer.WriteLine ("// This shader will not update automatically. Please regenerate if you change the original.");
