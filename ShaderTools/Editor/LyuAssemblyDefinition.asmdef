@@ -1,7 +1,6 @@
 {
     "name": "LyuAssemblyDefinition",
     "references": [
-        "LyuComponentsAssemblyDefinition"
     ],
     "optionalUnityReferences": [],
     "includePlatforms": [
